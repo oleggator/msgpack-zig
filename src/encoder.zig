@@ -154,6 +154,15 @@ test "encode int and uint" {
     try testEncode(encodeInt, "\xce\xff\xff\xff\xff", .{@as(u64, 0xffffffff)});
 }
 
+pub fn encodeBool(val: bool, writer: var) @TypeOf(writer).Error!void {
+    return writer.writeIntBig(u8, @as(u8, if (val) 0xc3 else 0xc2));
+}
+
+test "encode bool" {
+    try testEncode(encodeBool, "\xc3", .{true});
+    try testEncode(encodeBool, "\xc2", .{false});
+}
+
 pub fn encodeArrayLen(len: u32, writer: var) @TypeOf(writer).Error!void {
     if (len <= 15) {
         return writer.writeIntBig(u8, 0x90 | @truncate(u8, len));
