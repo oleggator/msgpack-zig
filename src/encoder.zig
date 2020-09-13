@@ -294,7 +294,7 @@ pub fn encode(
 fn testEncode(func: var, comptime expected: []const u8, input: var) !void {
     var buf: [255]u8 = undefined;
     var fbs = std.io.fixedBufferStream(&buf);
-    const writer = fbs.writer();
+    const writer = fbs.outStream();
 
     const args = input ++ .{writer};
     try @call(.{}, func, args);
