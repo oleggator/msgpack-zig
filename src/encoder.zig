@@ -59,6 +59,25 @@ pub fn encodeBinLen(len: u32, writer: var) @TypeOf(writer).Error!void {
     return writer.writeIntBig(u32, @truncate(u32, len));
 }
 
+test "encode bin length" {
+    try testEncode(encodeBinLen, "\xc4\x00", .{@as(u32, 0x00)});
+    try testEncode(encodeBinLen, "\xc4\x01", .{@as(u32, 0x01)});
+    try testEncode(encodeBinLen, "\xc4\x1e", .{@as(u32, 0x1e)});
+    try testEncode(encodeBinLen, "\xc4\x1f", .{@as(u32, 0x1f)});
+
+    try testEncode(encodeBinLen, "\xc4\x20", .{@as(u32, 0x20)});
+    try testEncode(encodeBinLen, "\xc4\xfe", .{@as(u32, 0xfe)});
+    try testEncode(encodeBinLen, "\xc4\xff", .{@as(u32, 0xff)});
+
+    try testEncode(encodeBinLen, "\xc5\x01\x00", .{@as(u32, 0x0100)});
+    try testEncode(encodeBinLen, "\xc5\xff\xfe", .{@as(u32, 0xfffe)});
+    try testEncode(encodeBinLen, "\xc5\xff\xff", .{@as(u32, 0xffff)});
+
+    try testEncode(encodeBinLen, "\xc6\x00\x01\x00\x00", .{@as(u32, 0x00010000)});
+    try testEncode(encodeBinLen, "\xc6\xff\xff\xff\xfe", .{@as(u32, 0xfffffffe)});
+    try testEncode(encodeBinLen, "\xc6\xff\xff\xff\xff", .{@as(u32, 0xffffffff)});
+}
+
 pub fn encodeBin(bin: []const u8, writer: var) @TypeOf(writer).Error!void {
     if (bin.len > std.math.maxInt(u32)) { unreachable; }
     try encodeBinLen(@truncate(u32, bin.len), writer);
