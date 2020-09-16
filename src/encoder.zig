@@ -1,6 +1,5 @@
 const std = @import("std");
 const testing = std.testing;
-const assert = std.debug.assert;
 const meta = std.meta;
 const minInt = std.math.minInt;
 const maxInt = std.math.maxInt;
@@ -42,7 +41,7 @@ test "encode string length" {
 }
 
 pub fn encodeStr(str: []const u8, writer: var) @TypeOf(writer).Error!void {
-    std.debug.assert(str.len <= std.math.maxInt(u32));
+    if (str.len > std.math.maxInt(u32)) { unreachable; }
     try encodeStrLen(@truncate(u32, str.len), writer);
     return writer.writeAll(str);
 }
