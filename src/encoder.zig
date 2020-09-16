@@ -1,6 +1,5 @@
 const std = @import("std");
 const testing = std.testing;
-const meta = std.meta;
 const minInt = std.math.minInt;
 const maxInt = std.math.maxInt;
 
@@ -18,7 +17,7 @@ pub fn encodeStrLen(len: u32, writer: var) @TypeOf(writer).Error!void {
     }
 
     try writer.writeIntBig(u8, 0xdb);
-    return writer.writeIntBig(u32, @truncate(u32, len));
+    return writer.writeIntBig(u32, len);
 }
 
 test "encode string length" {
@@ -44,6 +43,26 @@ pub fn encodeStr(str: []const u8, writer: var) @TypeOf(writer).Error!void {
     if (str.len > std.math.maxInt(u32)) { unreachable; }
     try encodeStrLen(@truncate(u32, str.len), writer);
     return writer.writeAll(str);
+}
+
+pub fn encodeBinLen(len: u32, writer: var) @TypeOf(writer).Error!void {
+    if (len <= 255) {
+        try writer.writeIntBig(u8, 0xc4);
+        return writer.writeIntBig(u8, @truncate(u8, len));
+    }
+    if (len <= 65535) {
+        try writer.writeIntBig(u8, 0xc5);
+        return writer.writeIntBig(u16, @truncate(u16, len));
+    }
+
+    try writer.writeIntBig(u8, 0xc6);
+    return writer.writeIntBig(u32, @truncate(u32, len));
+}
+
+pub fn encodeBin(bin: []const u8, writer: var) @TypeOf(writer).Error!void {
+    if (bin.len > std.math.maxInt(u32)) { unreachable; }
+    try encodeBinLen(@truncate(u32, bin.len), writer);
+    return writer.writeAll(bin);
 }
 
 pub fn encodeNil(writer: var) @TypeOf(writer).Error!void {
@@ -325,8 +344,11 @@ pub fn encode(
                 },
             },
             .Many, .Slice => {
-                if (ptr_info.child == u8 and std.unicode.utf8ValidateSlice(value)) {
-                    return encodeStr(value, writer);
+                if (ptr_info.child == u8) {
+                    if (std.unicode.utf8ValidateSlice(value)) {
+                        return encodeStr(value, writer);
+                    }
+                    return encodeBin(value, writer);
                 }
                 return encodeArray(value, options, writer);
             },
