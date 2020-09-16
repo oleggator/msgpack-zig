@@ -2,10 +2,8 @@ const std = @import("std");
 const testing = std.testing;
 const assert = std.debug.assert;
 const meta = std.meta;
-const trait = meta.trait;
 const minInt = std.math.minInt;
 const maxInt = std.math.maxInt;
-const warn = std.debug.warn;
 
 pub fn encodeStrLen(len: u32, writer: var) @TypeOf(writer).Error!void {
     if (len <= 31) {
@@ -321,26 +319,21 @@ pub fn encode(
         .Pointer => |ptr_info| switch (ptr_info.size) {
             .One => switch (@typeInfo(ptr_info.child)) {
                 .Array => {
-                    warn("array pointer", .{});
                     return encodeArray(value, options, writer);
                 },
                 else => {
-                    warn("pointer", .{});
                     return encode(value.*, options, writer);
                 },
             },
             .Many, .Slice => {
                 if (ptr_info.child == u8 and std.unicode.utf8ValidateSlice(value)) {
-                    warn("string\n", .{});
                     return encodeStr(value, writer);
                 }
-                warn("many or slice\n", .{});
                 return encodeArray(value, options, writer);
             },
             else => @compileError("Unable to encode type '" ++ @typeName(T) ++ "'"),
         },
         .Array => {
-            warn("array", .{});
             return encodeArray(&value, options, writer);
         },
         else => @compileError("Unable to encode type '" ++ @typeName(T) ++ "'"),
