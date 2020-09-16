@@ -3,10 +3,14 @@ on: [push]
 jobs:
   test:
     strategy:
+      fail-fast: false
       matrix:
-        zig_version:
-          - 'master'
-          - '0.6.0'
+        include:
+          - zig_version: 'master'
+            experimental: true
+          - zig_version: '0.6.0'
+            experimental: false
+    continue-on-error: '${{ matrix.experimental }}'
     runs-on: ubuntu-latest
     steps:
       - run: >-
