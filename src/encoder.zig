@@ -24,6 +24,25 @@ pub fn encodeStrLen(len: u32, writer: var) @TypeOf(writer).Error!void {
     return writer.writeIntBig(u32, @truncate(u32, len));
 }
 
+test "encode string length" {
+    try testEncode(encodeStrLen, "\xa0", .{@as(u32, 0x00)});
+    try testEncode(encodeStrLen, "\xa1", .{@as(u32, 0x01)});
+    try testEncode(encodeStrLen, "\xbe", .{@as(u32, 0x1e)});
+    try testEncode(encodeStrLen, "\xbf", .{@as(u32, 0x1f)});
+
+    try testEncode(encodeStrLen, "\xd9\x20", .{@as(u32, 0x20)});
+    try testEncode(encodeStrLen, "\xd9\xfe", .{@as(u32, 0xfe)});
+    try testEncode(encodeStrLen, "\xd9\xff", .{@as(u32, 0xff)});
+
+    try testEncode(encodeStrLen, "\xda\x01\x00", .{@as(u32, 0x0100)});
+    try testEncode(encodeStrLen, "\xda\xff\xfe", .{@as(u32, 0xfffe)});
+    try testEncode(encodeStrLen, "\xda\xff\xff", .{@as(u32, 0xffff)});
+
+    try testEncode(encodeStrLen, "\xdb\x00\x01\x00\x00", .{@as(u32, 0x00010000)});
+    try testEncode(encodeStrLen, "\xdb\xff\xff\xff\xfe", .{@as(u32, 0xfffffffe)});
+    try testEncode(encodeStrLen, "\xdb\xff\xff\xff\xff", .{@as(u32, 0xffffffff)});
+}
+
 pub fn encodeStr(str: []const u8, writer: var) @TypeOf(writer).Error!void {
     std.debug.assert(str.len <= std.math.maxInt(u32));
     try encodeStrLen(@truncate(u32, str.len), writer);
@@ -32,6 +51,10 @@ pub fn encodeStr(str: []const u8, writer: var) @TypeOf(writer).Error!void {
 
 pub fn encodeNil(writer: var) @TypeOf(writer).Error!void {
     return writer.writeIntBig(u8, 0xc0);
+}
+
+test "encode nil" {
+    try testEncode(encodeNil, "\xc0", .{});
 }
 
 pub fn encodeFloat(num: var, writer: var) @TypeOf(writer).Error!void {
@@ -175,6 +198,18 @@ pub fn encodeArrayLen(len: u32, writer: var) @TypeOf(writer).Error!void {
     return writer.writeIntBig(u32, @truncate(u32, len));
 }
 
+test "encode array length" {
+    try testEncode(encodeArrayLen, "\x90", .{@as(u32, 0)});
+    try testEncode(encodeArrayLen, "\x91", .{@as(u32, 1)});
+    try testEncode(encodeArrayLen, "\x9f", .{@as(u32, 15)});
+    try testEncode(encodeArrayLen, "\xdc\x00\x10", .{@as(u32, 16)});
+    try testEncode(encodeArrayLen, "\xdc\xff\xfe", .{@as(u32, 0xfffe)});
+    try testEncode(encodeArrayLen, "\xdc\xff\xff", .{@as(u32, 0xffff)});
+    try testEncode(encodeArrayLen, "\xdd\x00\x01\x00\x00", .{@as(u32, 0x10000)});
+    try testEncode(encodeArrayLen, "\xdd\xff\xff\xff\xfe", .{@as(u32, 0xfffffffe)});
+    try testEncode(encodeArrayLen, "\xdd\xff\xff\xff\xff", .{@as(u32, 0xffffffff)});
+}
+
 pub fn encodeMapLen(len: u32, writer: var) @TypeOf(writer).Error!void {
     if (len <= 15) {
         return writer.writeIntBig(u8, 0x80 | @truncate(u8, len));
@@ -185,6 +220,18 @@ pub fn encodeMapLen(len: u32, writer: var) @TypeOf(writer).Error!void {
     }
     try writer.writeIntBig(u8, 0xdf);
     return writer.writeIntBig(u32, @truncate(u32, len));
+}
+
+test "encode map length" {
+    try testEncode(encodeMapLen, "\x80", .{@as(u32, 0)});
+    try testEncode(encodeMapLen, "\x81", .{@as(u32, 1)});
+    try testEncode(encodeMapLen, "\x8f", .{@as(u32, 15)});
+    try testEncode(encodeMapLen, "\xde\x00\x10", .{@as(u32, 16)});
+    try testEncode(encodeMapLen, "\xde\xff\xfe", .{@as(u32, 0xfffe)});
+    try testEncode(encodeMapLen, "\xde\xff\xff", .{@as(u32, 0xffff)});
+    try testEncode(encodeMapLen, "\xdf\x00\x01\x00\x00", .{@as(u32, 0x10000)});
+    try testEncode(encodeMapLen, "\xdf\xff\xff\xff\xfe", .{@as(u32, 0xfffffffe)});
+    try testEncode(encodeMapLen, "\xdf\xff\xff\xff\xff", .{@as(u32, 0xffffffff)});
 }
 
 pub fn encodeArray(
