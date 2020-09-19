@@ -4,20 +4,22 @@ const minInt = std.math.minInt;
 const maxInt = std.math.maxInt;
 
 pub fn encodeStrLen(len: u32, writer: var) @TypeOf(writer).Error!void {
-    if (len <= 31) {
+    if (len <= std.math.maxInt(u5)) {
         return writer.writeIntBig(u8, 0xa0 | @truncate(u8, len));
     }
-    if (len <= 255) {
+    if (len <= std.math.maxInt(u8)) {
         try writer.writeIntBig(u8, 0xd9);
         return writer.writeIntBig(u8, @truncate(u8, len));
     }
-    if (len <= 65535) {
+    if (len <= std.math.maxInt(u16)) {
         try writer.writeIntBig(u8, 0xda);
         return writer.writeIntBig(u16, @truncate(u16, len));
     }
-
-    try writer.writeIntBig(u8, 0xdb);
-    return writer.writeIntBig(u32, len);
+    if (len <= std.math.maxInt(u32)) {
+        try writer.writeIntBig(u8, 0xdb);
+        return writer.writeIntBig(u32, len);
+    }
+    unreachable;
 }
 
 test "encode string length" {
@@ -40,23 +42,24 @@ test "encode string length" {
 }
 
 pub fn encodeStr(str: []const u8, writer: var) @TypeOf(writer).Error!void {
-    if (str.len > std.math.maxInt(u32)) { unreachable; }
     try encodeStrLen(@truncate(u32, str.len), writer);
     return writer.writeAll(str);
 }
 
 pub fn encodeBinLen(len: u32, writer: var) @TypeOf(writer).Error!void {
-    if (len <= 255) {
+    if (len <= std.math.maxInt(u8)) {
         try writer.writeIntBig(u8, 0xc4);
         return writer.writeIntBig(u8, @truncate(u8, len));
     }
-    if (len <= 65535) {
+    if (len <= std.math.maxInt(u16)) {
         try writer.writeIntBig(u8, 0xc5);
         return writer.writeIntBig(u16, @truncate(u16, len));
     }
-
-    try writer.writeIntBig(u8, 0xc6);
-    return writer.writeIntBig(u32, @truncate(u32, len));
+    if (len <= std.math.maxInt(u32)) {
+        try writer.writeIntBig(u8, 0xc6);
+        return writer.writeIntBig(u32, @truncate(u32, len));
+    }
+    unreachable;
 }
 
 test "encode bin length" {
@@ -79,7 +82,6 @@ test "encode bin length" {
 }
 
 pub fn encodeBin(bin: []const u8, writer: var) @TypeOf(writer).Error!void {
-    if (bin.len > std.math.maxInt(u32)) { unreachable; }
     try encodeBinLen(@truncate(u32, bin.len), writer);
     return writer.writeAll(bin);
 }
@@ -91,15 +93,17 @@ pub fn encodeExtLen(ext_type: i8, len: u32, writer: var) @TypeOf(writer).Error!v
         4 => try writer.writeIntBig(u8, 0xd6),
         8 => try writer.writeIntBig(u8, 0xd7),
         16 => try writer.writeIntBig(u8, 0xd8),
-        else => if (len <= 255) {
+        else => if (len <= std.math.maxInt(u8)) {
             try writer.writeIntBig(u8, 0xc7);
             try writer.writeIntBig(u8, @truncate(u8, len));
-        } else if (len <= 65535) {
+        } else if (len <= std.math.maxInt(u16)) {
             try writer.writeIntBig(u8, 0xc8);
             try writer.writeIntBig(u16, @truncate(u16, len));
-        } else {
+        } else if (len <= std.math.maxInt(u32)) {
             try writer.writeIntBig(u8, 0xc9);
             try writer.writeIntBig(u32, len);
+        } else {
+            unreachable;
         },
     }
     return writer.writeIntBig(i8, ext_type);
@@ -144,7 +148,6 @@ test "encode extension length" {
 }
 
 pub fn encodeExt(ext_type: i8, bin: []const u8, writer: var) @TypeOf(writer).Error!void {
-    if (bin.len > std.math.maxInt(u32)) { unreachable; }
     try encodeExtLen(ext_type, @truncate(u32, bin.len), writer);
     return writer.writeAll(bin);
 }
@@ -287,10 +290,10 @@ test "encode bool" {
 }
 
 pub fn encodeArrayLen(len: u32, writer: var) @TypeOf(writer).Error!void {
-    if (len <= 15) {
+    if (len <= std.math.maxInt(u4)) {
         return writer.writeIntBig(u8, 0x90 | @truncate(u8, len));
     }
-    if (len <= 65535) {
+    if (len <= std.math.maxInt(u16)) {
         try writer.writeIntBig(u8, 0xdc);
         return writer.writeIntBig(u16, @truncate(u16, len));
     }
@@ -311,15 +314,18 @@ test "encode array length" {
 }
 
 pub fn encodeMapLen(len: u32, writer: var) @TypeOf(writer).Error!void {
-    if (len <= 15) {
+    if (len <= std.math.maxInt(u4)) {
         return writer.writeIntBig(u8, 0x80 | @truncate(u8, len));
     }
-    if (len <= 65535) {
+    if (len <= std.math.maxInt(u16)) {
         try writer.writeIntBig(u8, 0xde);
         return writer.writeIntBig(u16, @truncate(u16, len));
     }
-    try writer.writeIntBig(u8, 0xdf);
-    return writer.writeIntBig(u32, @truncate(u32, len));
+    if (len <= std.math.maxInt(u32)) {
+        try writer.writeIntBig(u8, 0xdf);
+        return writer.writeIntBig(u32, @truncate(u32, len));
+    }
+    unreachable;
 }
 
 test "encode map length" {
