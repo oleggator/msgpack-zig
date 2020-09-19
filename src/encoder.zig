@@ -84,6 +84,71 @@ pub fn encodeBin(bin: []const u8, writer: var) @TypeOf(writer).Error!void {
     return writer.writeAll(bin);
 }
 
+pub fn encodeExtLen(ext_type: i8, len: u32, writer: var) @TypeOf(writer).Error!void {
+    switch (len) {
+        1 => try writer.writeIntBig(u8, 0xd4),
+        2 => try writer.writeIntBig(u8, 0xd5),
+        4 => try writer.writeIntBig(u8, 0xd6),
+        8 => try writer.writeIntBig(u8, 0xd7),
+        16 => try writer.writeIntBig(u8, 0xd8),
+        else => if (len <= 255) {
+            try writer.writeIntBig(u8, 0xc7);
+            try writer.writeIntBig(u8, @truncate(u8, len));
+        } else if (len <= 65535) {
+            try writer.writeIntBig(u8, 0xc8);
+            try writer.writeIntBig(u16, @truncate(u16, len));
+        } else {
+            try writer.writeIntBig(u8, 0xc9);
+            try writer.writeIntBig(u32, len);
+        },
+    }
+    return writer.writeIntBig(i8, ext_type);
+}
+
+test "encode extension length" {
+    try testEncode(encodeExtLen, "\xd4\x00", .{@as(i8, 0), @as(u32, 0x01)});
+    try testEncode(encodeExtLen, "\xd5\x00", .{@as(i8, 0), @as(u32, 0x02)});
+    try testEncode(encodeExtLen, "\xd6\x00", .{@as(i8, 0), @as(u32, 0x04)});
+    try testEncode(encodeExtLen, "\xd7\x00", .{@as(i8, 0), @as(u32, 0x08)});
+    try testEncode(encodeExtLen, "\xd8\x00", .{@as(i8, 0), @as(u32, 0x10)});
+
+    // ext 8
+    try testEncode(encodeExtLen, "\xc7\x11\x00", .{@as(i8, 0), @as(u32, 0x11)});
+    try testEncode(encodeExtLen, "\xc7\xfe\x00", .{@as(i8, 0), @as(u32, 0xfe)});
+    try testEncode(encodeExtLen, "\xc7\xff\x00", .{@as(i8, 0), @as(u32, 0xff)});
+
+    try testEncode(encodeExtLen, "\xc7\x00\x00", .{@as(i8, 0), @as(u32, 0x00)});
+    try testEncode(encodeExtLen, "\xc7\x03\x00", .{@as(i8, 0), @as(u32, 0x03)});
+    try testEncode(encodeExtLen, "\xc7\x05\x00", .{@as(i8, 0), @as(u32, 0x05)});
+    try testEncode(encodeExtLen, "\xc7\x06\x00", .{@as(i8, 0), @as(u32, 0x06)});
+    try testEncode(encodeExtLen, "\xc7\x07\x00", .{@as(i8, 0), @as(u32, 0x07)});
+    try testEncode(encodeExtLen, "\xc7\x09\x00", .{@as(i8, 0), @as(u32, 0x09)});
+    try testEncode(encodeExtLen, "\xc7\x0a\x00", .{@as(i8, 0), @as(u32, 0x0a)});
+    try testEncode(encodeExtLen, "\xc7\x0b\x00", .{@as(i8, 0), @as(u32, 0x0b)});
+    try testEncode(encodeExtLen, "\xc7\x0c\x00", .{@as(i8, 0), @as(u32, 0x0c)});
+    try testEncode(encodeExtLen, "\xc7\x0d\x00", .{@as(i8, 0), @as(u32, 0x0d)});
+    try testEncode(encodeExtLen, "\xc7\x0e\x00", .{@as(i8, 0), @as(u32, 0x0e)});
+    try testEncode(encodeExtLen, "\xc7\x0f\x00", .{@as(i8, 0), @as(u32, 0x0f)});
+
+    // ext 16
+    try testEncode(encodeExtLen, "\xc8\x01\x00\x00", .{@as(i8, 0), @as(u32, 0x0100)});
+    try testEncode(encodeExtLen, "\xc8\x01\x01\x00", .{@as(i8, 0), @as(u32, 0x0101)});
+    try testEncode(encodeExtLen, "\xc8\xff\xfe\x00", .{@as(i8, 0), @as(u32, 0xfffe)});
+    try testEncode(encodeExtLen, "\xc8\xff\xff\x00", .{@as(i8, 0), @as(u32, 0xffff)});
+
+    // ext 32
+    try testEncode(encodeExtLen, "\xc9\x00\x01\x00\x00\x00", .{@as(i8, 0), @as(u32, 0x00010000)});
+    try testEncode(encodeExtLen, "\xc9\x00\x01\x00\x01\x00", .{@as(i8, 0), @as(u32, 0x00010001)});
+    try testEncode(encodeExtLen, "\xc9\xff\xff\xff\xfe\x00", .{@as(i8, 0), @as(u32, 0xfffffffe)});
+    try testEncode(encodeExtLen, "\xc9\xff\xff\xff\xff\x00", .{@as(i8, 0), @as(u32, 0xffffffff)});
+}
+
+pub fn encodeExt(ext_type: i8, bin: []const u8, writer: var) @TypeOf(writer).Error!void {
+    if (bin.len > std.math.maxInt(u32)) { unreachable; }
+    try encodeExtLen(ext_type, @truncate(u32, bin.len), writer);
+    return writer.writeAll(bin);
+}
+
 pub fn encodeNil(writer: var) @TypeOf(writer).Error!void {
     return writer.writeIntBig(u8, 0xc0);
 }
