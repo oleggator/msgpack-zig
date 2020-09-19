@@ -39,6 +39,24 @@ test "encode string length" {
     try testEncode(encodeStrLen, "\xdb\x00\x01\x00\x00", .{@as(u32, 0x00010000)});
     try testEncode(encodeStrLen, "\xdb\xff\xff\xff\xfe", .{@as(u32, 0xfffffffe)});
     try testEncode(encodeStrLen, "\xdb\xff\xff\xff\xff", .{@as(u32, 0xffffffff)});
+
+
+    try testEncode(encodeStrLen, "\xa0", .{@as(comptime_int, 0x00)});
+    try testEncode(encodeStrLen, "\xa1", .{@as(comptime_int, 0x01)});
+    try testEncode(encodeStrLen, "\xbe", .{@as(comptime_int, 0x1e)});
+    try testEncode(encodeStrLen, "\xbf", .{@as(comptime_int, 0x1f)});
+
+    try testEncode(encodeStrLen, "\xd9\x20", .{@as(comptime_int, 0x20)});
+    try testEncode(encodeStrLen, "\xd9\xfe", .{@as(comptime_int, 0xfe)});
+    try testEncode(encodeStrLen, "\xd9\xff", .{@as(comptime_int, 0xff)});
+
+    try testEncode(encodeStrLen, "\xda\x01\x00", .{@as(comptime_int, 0x0100)});
+    try testEncode(encodeStrLen, "\xda\xff\xfe", .{@as(comptime_int, 0xfffe)});
+    try testEncode(encodeStrLen, "\xda\xff\xff", .{@as(comptime_int, 0xffff)});
+
+    try testEncode(encodeStrLen, "\xdb\x00\x01\x00\x00", .{@as(comptime_int, 0x00010000)});
+    try testEncode(encodeStrLen, "\xdb\xff\xff\xff\xfe", .{@as(comptime_int, 0xfffffffe)});
+    try testEncode(encodeStrLen, "\xdb\xff\xff\xff\xff", .{@as(comptime_int, 0xffffffff)});
 }
 
 pub fn encodeStr(str: []const u8, writer: var) @TypeOf(writer).Error!void {
@@ -79,6 +97,24 @@ test "encode bin length" {
     try testEncode(encodeBinLen, "\xc6\x00\x01\x00\x00", .{@as(u32, 0x00010000)});
     try testEncode(encodeBinLen, "\xc6\xff\xff\xff\xfe", .{@as(u32, 0xfffffffe)});
     try testEncode(encodeBinLen, "\xc6\xff\xff\xff\xff", .{@as(u32, 0xffffffff)});
+
+
+    try testEncode(encodeBinLen, "\xc4\x00", .{@as(comptime_int, 0x00)});
+    try testEncode(encodeBinLen, "\xc4\x01", .{@as(comptime_int, 0x01)});
+    try testEncode(encodeBinLen, "\xc4\x1e", .{@as(comptime_int, 0x1e)});
+    try testEncode(encodeBinLen, "\xc4\x1f", .{@as(comptime_int, 0x1f)});
+
+    try testEncode(encodeBinLen, "\xc4\x20", .{@as(comptime_int, 0x20)});
+    try testEncode(encodeBinLen, "\xc4\xfe", .{@as(comptime_int, 0xfe)});
+    try testEncode(encodeBinLen, "\xc4\xff", .{@as(comptime_int, 0xff)});
+
+    try testEncode(encodeBinLen, "\xc5\x01\x00", .{@as(comptime_int, 0x0100)});
+    try testEncode(encodeBinLen, "\xc5\xff\xfe", .{@as(comptime_int, 0xfffe)});
+    try testEncode(encodeBinLen, "\xc5\xff\xff", .{@as(comptime_int, 0xffff)});
+
+    try testEncode(encodeBinLen, "\xc6\x00\x01\x00\x00", .{@as(comptime_int, 0x00010000)});
+    try testEncode(encodeBinLen, "\xc6\xff\xff\xff\xfe", .{@as(comptime_int, 0xfffffffe)});
+    try testEncode(encodeBinLen, "\xc6\xff\xff\xff\xff", .{@as(comptime_int, 0xffffffff)});
 }
 
 pub fn encodeBin(bin: []const u8, writer: var) @TypeOf(writer).Error!void {
@@ -145,6 +181,43 @@ test "encode extension length" {
     try testEncode(encodeExtLen, "\xc9\x00\x01\x00\x01\x00", .{@as(i8, 0), @as(u32, 0x00010001)});
     try testEncode(encodeExtLen, "\xc9\xff\xff\xff\xfe\x00", .{@as(i8, 0), @as(u32, 0xfffffffe)});
     try testEncode(encodeExtLen, "\xc9\xff\xff\xff\xff\x00", .{@as(i8, 0), @as(u32, 0xffffffff)});
+
+
+    try testEncode(encodeExtLen, "\xd4\x00", .{@as(i8, 0), @as(comptime_int, 0x01)});
+    try testEncode(encodeExtLen, "\xd5\x00", .{@as(i8, 0), @as(comptime_int, 0x02)});
+    try testEncode(encodeExtLen, "\xd6\x00", .{@as(i8, 0), @as(comptime_int, 0x04)});
+    try testEncode(encodeExtLen, "\xd7\x00", .{@as(i8, 0), @as(comptime_int, 0x08)});
+    try testEncode(encodeExtLen, "\xd8\x00", .{@as(i8, 0), @as(comptime_int, 0x10)});
+
+    // ext 8
+    try testEncode(encodeExtLen, "\xc7\x11\x00", .{@as(i8, 0), @as(comptime_int, 0x11)});
+    try testEncode(encodeExtLen, "\xc7\xfe\x00", .{@as(i8, 0), @as(comptime_int, 0xfe)});
+    try testEncode(encodeExtLen, "\xc7\xff\x00", .{@as(i8, 0), @as(comptime_int, 0xff)});
+
+    try testEncode(encodeExtLen, "\xc7\x00\x00", .{@as(i8, 0), @as(comptime_int, 0x00)});
+    try testEncode(encodeExtLen, "\xc7\x03\x00", .{@as(i8, 0), @as(comptime_int, 0x03)});
+    try testEncode(encodeExtLen, "\xc7\x05\x00", .{@as(i8, 0), @as(comptime_int, 0x05)});
+    try testEncode(encodeExtLen, "\xc7\x06\x00", .{@as(i8, 0), @as(comptime_int, 0x06)});
+    try testEncode(encodeExtLen, "\xc7\x07\x00", .{@as(i8, 0), @as(comptime_int, 0x07)});
+    try testEncode(encodeExtLen, "\xc7\x09\x00", .{@as(i8, 0), @as(comptime_int, 0x09)});
+    try testEncode(encodeExtLen, "\xc7\x0a\x00", .{@as(i8, 0), @as(comptime_int, 0x0a)});
+    try testEncode(encodeExtLen, "\xc7\x0b\x00", .{@as(i8, 0), @as(comptime_int, 0x0b)});
+    try testEncode(encodeExtLen, "\xc7\x0c\x00", .{@as(i8, 0), @as(comptime_int, 0x0c)});
+    try testEncode(encodeExtLen, "\xc7\x0d\x00", .{@as(i8, 0), @as(comptime_int, 0x0d)});
+    try testEncode(encodeExtLen, "\xc7\x0e\x00", .{@as(i8, 0), @as(comptime_int, 0x0e)});
+    try testEncode(encodeExtLen, "\xc7\x0f\x00", .{@as(i8, 0), @as(comptime_int, 0x0f)});
+
+    // ext 16
+    try testEncode(encodeExtLen, "\xc8\x01\x00\x00", .{@as(i8, 0), @as(comptime_int, 0x0100)});
+    try testEncode(encodeExtLen, "\xc8\x01\x01\x00", .{@as(i8, 0), @as(comptime_int, 0x0101)});
+    try testEncode(encodeExtLen, "\xc8\xff\xfe\x00", .{@as(i8, 0), @as(comptime_int, 0xfffe)});
+    try testEncode(encodeExtLen, "\xc8\xff\xff\x00", .{@as(i8, 0), @as(comptime_int, 0xffff)});
+
+    // ext 32
+    try testEncode(encodeExtLen, "\xc9\x00\x01\x00\x00\x00", .{@as(i8, 0), @as(comptime_int, 0x00010000)});
+    try testEncode(encodeExtLen, "\xc9\x00\x01\x00\x01\x00", .{@as(i8, 0), @as(comptime_int, 0x00010001)});
+    try testEncode(encodeExtLen, "\xc9\xff\xff\xff\xfe\x00", .{@as(i8, 0), @as(comptime_int, 0xfffffffe)});
+    try testEncode(encodeExtLen, "\xc9\xff\xff\xff\xff\x00", .{@as(i8, 0), @as(comptime_int, 0xffffffff)});
 }
 
 pub fn encodeExt(ext_type: i8, bin: []const u8, writer: var) @TypeOf(writer).Error!void {
@@ -164,6 +237,7 @@ pub fn encodeFloat(num: var, writer: var) @TypeOf(writer).Error!void {
     comptime const T = @TypeOf(num);
     comptime const bits = switch (@typeInfo(T)) {
         .Float => T.bit_count,
+        .ComptimeFloat => 64,
         else => @compileError("unsupported type"),
     };
 
@@ -188,12 +262,17 @@ test "test float and double" {
     try testEncode(encodeFloat, "\xcb\x3f\xf0\x00\x00\x00\x00\x00\x00", .{@as(f64, 1.0)});
     try testEncode(encodeFloat, "\xcb\x40\x09\x21\xfb\x54\x44\x2d\x18", .{@as(f64, 3.141592653589793)});
     try testEncode(encodeFloat, "\xcb\xd4\x7d\x42\xae\xa2\x87\x9f\x2e", .{@as(f64, -1e+99)});
+
+    try testEncode(encodeFloat, "\xcb\x3f\xf0\x00\x00\x00\x00\x00\x00", .{@as(comptime_float, 1.0)});
+    try testEncode(encodeFloat, "\xcb\x40\x09\x21\xfb\x54\x44\x2d\x18", .{@as(comptime_float, 3.141592653589793)});
+    try testEncode(encodeFloat, "\xcb\xd4\x7d\x42\xae\xa2\x87\x9f\x2e", .{@as(comptime_float, -1e+99)});
 }
 
 pub fn encodeInt(num: var, writer: var) @TypeOf(writer).Error!void {
     comptime const T = @TypeOf(num);
     comptime const intInfo = switch (@typeInfo(T)) {
         .Int => |intInfo| intInfo,
+        .ComptimeInt => @typeInfo(std.math.IntFittingRange(num, num)).Int,
         else => @compileError("unsupported type"),
     };
 
@@ -278,6 +357,44 @@ test "encode int and uint" {
     try testEncode(encodeInt, "\xce\x00\x01\x00\x00", .{@as(u64, 0x10000)});
     try testEncode(encodeInt, "\xce\xff\xff\xff\xfe", .{@as(u64, 0xfffffffe)});
     try testEncode(encodeInt, "\xce\xff\xff\xff\xff", .{@as(u64, 0xffffffff)});
+
+
+    try testEncode(encodeInt, "\xff", .{@as(comptime_int, -0x01)});
+    try testEncode(encodeInt, "\xe2", .{@as(comptime_int,-0x1e)});
+    try testEncode(encodeInt, "\xe1", .{@as(comptime_int,-0x1f)});
+    try testEncode(encodeInt, "\xe0", .{@as(comptime_int, -0x20)});
+    try testEncode(encodeInt, "\xd0\xdf", .{@as(comptime_int, -0x21)});
+
+    try testEncode(encodeInt, "\xd0\x81", .{@as(comptime_int, -0x7f)});
+    try testEncode(encodeInt, "\xd0\x80", .{@as(comptime_int, -0x80)});
+
+    try testEncode(encodeInt, "\xd1\xff\x7f", .{@as(comptime_int, -0x81)});
+    try testEncode(encodeInt, "\xd1\x80\x01", .{@as(comptime_int, -0x7fff)});
+    try testEncode(encodeInt, "\xd1\x80\x00", .{@as(comptime_int, -0x8000)});
+
+    try testEncode(encodeInt, "\xd2\xff\xff\x7f\xff", .{@as(comptime_int, -0x8001)});
+    try testEncode(encodeInt, "\xd2\x80\x00\x00\x01", .{@as(comptime_int, -0x7fffffff)});
+    try testEncode(encodeInt, "\xd2\x80\x00\x00\x00", .{@as(comptime_int, -0x80000000)});
+
+    try testEncode(encodeInt, "\xd3\xff\xff\xff\xff\x7f\xff\xff\xff", .{@as(comptime_int, -0x80000001)});
+    try testEncode(encodeInt, "\xd3\x80\x00\x00\x00\x00\x00\x00\x01", .{@as(comptime_int, -0x7fffffffffffffff)});
+    try testEncode(encodeInt, "\xd3\x80\x00\x00\x00\x00\x00\x00\x00", .{@as(comptime_int, -0x8000000000000000)});
+
+    try testEncode(encodeInt, "\x00", .{@as(comptime_int, 0)});
+    try testEncode(encodeInt, "\x01", .{@as(comptime_int, 1)});
+    try testEncode(encodeInt, "\x7e", .{@as(comptime_int, 0x7e)});
+    try testEncode(encodeInt, "\x7f", .{@as(comptime_int, 0x7f)});
+
+    try testEncode(encodeInt, "\xcc\x80", .{@as(comptime_int, 0x80)});
+    try testEncode(encodeInt, "\xcc\xfe", .{@as(comptime_int, 0xfe)});
+    try testEncode(encodeInt, "\xcc\xff", .{@as(comptime_int, 0xff)});
+
+    try testEncode(encodeInt, "\xcd\xff\xfe", .{@as(comptime_int, 0xfffe)});
+    try testEncode(encodeInt, "\xcd\xff\xff", .{@as(comptime_int, 0xffff)});
+
+    try testEncode(encodeInt, "\xce\x00\x01\x00\x00", .{@as(comptime_int, 0x10000)});
+    try testEncode(encodeInt, "\xce\xff\xff\xff\xfe", .{@as(comptime_int, 0xfffffffe)});
+    try testEncode(encodeInt, "\xce\xff\xff\xff\xff", .{@as(comptime_int, 0xffffffff)});
 }
 
 pub fn encodeBool(val: bool, writer: var) @TypeOf(writer).Error!void {
@@ -311,6 +428,16 @@ test "encode array length" {
     try testEncode(encodeArrayLen, "\xdd\x00\x01\x00\x00", .{@as(u32, 0x10000)});
     try testEncode(encodeArrayLen, "\xdd\xff\xff\xff\xfe", .{@as(u32, 0xfffffffe)});
     try testEncode(encodeArrayLen, "\xdd\xff\xff\xff\xff", .{@as(u32, 0xffffffff)});
+
+    try testEncode(encodeArrayLen, "\x90", .{@as(comptime_int, 0)});
+    try testEncode(encodeArrayLen, "\x91", .{@as(comptime_int, 1)});
+    try testEncode(encodeArrayLen, "\x9f", .{@as(comptime_int, 15)});
+    try testEncode(encodeArrayLen, "\xdc\x00\x10", .{@as(comptime_int, 16)});
+    try testEncode(encodeArrayLen, "\xdc\xff\xfe", .{@as(comptime_int, 0xfffe)});
+    try testEncode(encodeArrayLen, "\xdc\xff\xff", .{@as(comptime_int, 0xffff)});
+    try testEncode(encodeArrayLen, "\xdd\x00\x01\x00\x00", .{@as(comptime_int, 0x10000)});
+    try testEncode(encodeArrayLen, "\xdd\xff\xff\xff\xfe", .{@as(comptime_int, 0xfffffffe)});
+    try testEncode(encodeArrayLen, "\xdd\xff\xff\xff\xff", .{@as(comptime_int, 0xffffffff)});
 }
 
 pub fn encodeMapLen(len: u32, writer: var) @TypeOf(writer).Error!void {
@@ -338,6 +465,16 @@ test "encode map length" {
     try testEncode(encodeMapLen, "\xdf\x00\x01\x00\x00", .{@as(u32, 0x10000)});
     try testEncode(encodeMapLen, "\xdf\xff\xff\xff\xfe", .{@as(u32, 0xfffffffe)});
     try testEncode(encodeMapLen, "\xdf\xff\xff\xff\xff", .{@as(u32, 0xffffffff)});
+
+    try testEncode(encodeMapLen, "\x80", .{@as(comptime_int, 0)});
+    try testEncode(encodeMapLen, "\x81", .{@as(comptime_int, 1)});
+    try testEncode(encodeMapLen, "\x8f", .{@as(comptime_int, 15)});
+    try testEncode(encodeMapLen, "\xde\x00\x10", .{@as(comptime_int, 16)});
+    try testEncode(encodeMapLen, "\xde\xff\xfe", .{@as(comptime_int, 0xfffe)});
+    try testEncode(encodeMapLen, "\xde\xff\xff", .{@as(comptime_int, 0xffff)});
+    try testEncode(encodeMapLen, "\xdf\x00\x01\x00\x00", .{@as(comptime_int, 0x10000)});
+    try testEncode(encodeMapLen, "\xdf\xff\xff\xff\xfe", .{@as(comptime_int, 0xfffffffe)});
+    try testEncode(encodeMapLen, "\xdf\xff\xff\xff\xff", .{@as(comptime_int, 0xffffffff)});
 }
 
 pub fn encodeArray(
