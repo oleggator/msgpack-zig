@@ -436,6 +436,40 @@ test "encode array length" {
     try testEncode(encodeArrayLen, "\xdd\xff\xff\xff\xff", .{@as(comptime_int, 0xffffffff)});
 }
 
+pub fn encodeArray(arr: anytype, options: EncodingOptions, writer: anytype) @TypeOf(writer).Error!void {
+    comptime const T = @TypeOf(arr);
+    switch (@typeInfo(T)) {
+        .Pointer => |ptr_info| switch (ptr_info.size) {
+            .One => switch (@typeInfo(ptr_info.child)) {
+                .Array => {
+                    const Slice = []const std.meta.Elem(ptr_info.child);
+                    return encodeArray(@as(Slice, arr), options, writer);
+                },
+                else => @compileError("unsupported type"),
+            },
+            .Many, .Slice => {
+                try encodeArrayLen(@truncate(u32, arr.len), writer);
+                for (arr) |value| {
+                    try encode(value, options, writer);
+                }
+            },
+            else => @compileError("Unable to encode type '" ++ @typeName(T) ++ "'"),
+        },
+        .Array => {
+            return encodeArray(&arr, options, writer);
+        },
+        else => @compileError("Unable to encode type '" ++ @typeName(T) ++ "'"),
+    }
+}
+
+test "encode array" {
+    var testArray = [_]i32{ 1, 2, 3, 4 };
+
+    try testEncode(encodeArray, "\x94\x01\x02\x03\x04", .{ testArray, EncodingOptions{} });
+    try testEncode(encodeArray, "\x94\x01\x02\x03\x04", .{ &testArray, EncodingOptions{} });
+    try testEncode(encodeArray, "\x94\x01\x02\x03\x04", .{ testArray[0..testArray.len], EncodingOptions{} });
+}
+
 pub fn encodeMapLen(len: u32, writer: anytype) @TypeOf(writer).Error!void {
     if (len <= std.math.maxInt(u4)) {
         return writer.writeIntBig(u8, 0x80 | @truncate(u8, len));
@@ -471,36 +505,6 @@ test "encode map length" {
     try testEncode(encodeMapLen, "\xdf\x00\x01\x00\x00", .{@as(comptime_int, 0x10000)});
     try testEncode(encodeMapLen, "\xdf\xff\xff\xff\xfe", .{@as(comptime_int, 0xfffffffe)});
     try testEncode(encodeMapLen, "\xdf\xff\xff\xff\xff", .{@as(comptime_int, 0xffffffff)});
-}
-
-pub fn encodeArray(
-    arr: anytype,
-    options: EncodingOptions,
-    writer: anytype,
-) @TypeOf(writer).Error!void {
-    comptime const T = @TypeOf(arr);
-    switch (@typeInfo(T)) {
-        .Pointer => |ptr_info| switch (ptr_info.size) {
-            .One => switch (@typeInfo(ptr_info.child)) {
-                .Array => {
-                    const Slice = []const std.meta.Elem(ptr_info.child);
-                    return encodeArray(@as(Slice, arr), options, writer);
-                },
-                else => @compileError("unsupported type"),
-            },
-            .Many, .Slice => {
-                try encodeArrayLen(@truncate(u32, arr.len), writer);
-                for (arr) |value| {
-                    try encode(value, options, writer);
-                }
-            },
-            else => @compileError("Unable to encode type '" ++ @typeName(T) ++ "'"),
-        },
-        .Array => {
-            return encodeArray(&arr, options, writer);
-        },
-        else => @compileError("unsupported type"),
-    }
 }
 
 pub fn encodeStruct(
