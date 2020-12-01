@@ -6,6 +6,7 @@ Based on [github.com/tarantool/msgpuck](https://github.com/tarantool/msgpuck).
 ## Stream API implementation progress
 | Type                    |         Encoding        | Decoding |
 |-------------------------|:-----------------------:|:--------:|
+| generic                 | :ballot_box_with_check: |          |
 | int (7-64 bit)          |    :white_check_mark:   |          |
 | comptime int (7-64 bit) |    :white_check_mark:   |          |
 | float (32, 64 bit)      |    :white_check_mark:   |          |
