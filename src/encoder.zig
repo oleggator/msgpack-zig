@@ -543,49 +543,32 @@ pub fn encode(
     writer: anytype,
 ) @TypeOf(writer).Error!void {
     const T = @TypeOf(value);
-    switch (@typeInfo(T)) {
-        .Float, .ComptimeFloat => {
-            return encodeFloat(value, writer);
-        },
-        .Int, .ComptimeInt => {
-            return encodeInt(value, writer);
-        },
-        .Bool => {
-            return encodeBool(value, writer);
-        },
-        .Optional => if (value) |payload| {
-            return encode(payload, options, writer);
-        } else {
-            return encodeNil(writer);
-        },
-        .Struct => {
-            return encodeStruct(value, options, writer);
-        },
+    return switch (@typeInfo(T)) {
+        .Float, .ComptimeFloat => encodeFloat(value, writer),
+        .Int, .ComptimeInt => encodeInt(value, writer),
+        .Bool => encodeBool(value, writer),
+        .Optional => if (value) |payload| encode(payload, options, writer) else encodeNil(writer),
+        .Struct => encodeStruct(value, options, writer),
         .Pointer => |ptr_info| switch (ptr_info.size) {
             .One => switch (@typeInfo(ptr_info.child)) {
-                .Array => {
-                    return encodeArray(value, options, writer);
-                },
-                else => {
-                    return encode(value.*, options, writer);
-                },
+                .Array => encodeArray(value, options, writer),
+                else => encode(value.*, options, writer),
             },
-            .Many, .Slice => {
+            .Many, .Slice => blk: {
                 if (ptr_info.child == u8) {
                     if (std.unicode.utf8ValidateSlice(value)) {
-                        return encodeStr(value, writer);
+                        break :blk encodeStr(value, writer);
                     }
-                    return encodeBin(value, writer);
+                    break :blk encodeBin(value, writer);
                 }
-                return encodeArray(value, options, writer);
+                break :blk encodeArray(value, options, writer);
             },
             else => @compileError("Unable to encode type '" ++ @typeName(T) ++ "'"),
         },
-        .Array => {
-            return encodeArray(&value, options, writer);
-        },
+        .Array => encodeArray(&value, options, writer),
+        .Null => encodeNil(writer),
         else => @compileError("Unable to encode type '" ++ @typeName(T) ++ "'"),
-    }
+    };
 }
 
 fn testEncode(func: anytype, comptime expected: []const u8, input: anytype) !void {
