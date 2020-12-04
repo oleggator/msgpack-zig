@@ -551,7 +551,10 @@ pub fn encode(
         .Struct => encodeStruct(value, options, writer),
         .Pointer => |ptr_info| switch (ptr_info.size) {
             .One => switch (@typeInfo(ptr_info.child)) {
-                .Array => encodeArray(value, options, writer),
+                .Array => blk: {
+                    const Slice = []const std.meta.Elem(ptr_info.child);
+                    break :blk encode(@as(Slice, value), options, writer);
+                },
                 else => encode(value.*, options, writer),
             },
             .Many, .Slice => blk: {
