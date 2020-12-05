@@ -58,7 +58,7 @@ test "encode string length" {
     try testEncode(encodeStrLen, "\xdb\xff\xff\xff\xff", .{@as(comptime_int, 0xffffffff)});
 }
 
-pub fn encodeStr(str: []const u8, writer: anytype) @TypeOf(writer).Error!void {
+pub inline fn encodeStr(str: []const u8, writer: anytype) @TypeOf(writer).Error!void {
     try encodeStrLen(@truncate(u32, str.len), writer);
     return writer.writeAll(str);
 }
@@ -115,7 +115,7 @@ test "encode bin length" {
     try testEncode(encodeBinLen, "\xc6\xff\xff\xff\xff", .{@as(comptime_int, 0xffffffff)});
 }
 
-pub fn encodeBin(bin: []const u8, writer: anytype) @TypeOf(writer).Error!void {
+pub inline fn encodeBin(bin: []const u8, writer: anytype) @TypeOf(writer).Error!void {
     try encodeBinLen(@truncate(u32, bin.len), writer);
     return writer.writeAll(bin);
 }
@@ -217,12 +217,12 @@ test "encode extension length" {
     try testEncode(encodeExtLen, "\xc9\xff\xff\xff\xff\x00", .{ @as(i8, 0), @as(comptime_int, 0xffffffff) });
 }
 
-pub fn encodeExt(ext_type: i8, bin: []const u8, writer: anytype) @TypeOf(writer).Error!void {
+pub inline fn encodeExt(ext_type: i8, bin: []const u8, writer: anytype) @TypeOf(writer).Error!void {
     try encodeExtLen(ext_type, @truncate(u32, bin.len), writer);
     return writer.writeAll(bin);
 }
 
-pub fn encodeNil(writer: anytype) @TypeOf(writer).Error!void {
+pub inline fn encodeNil(writer: anytype) @TypeOf(writer).Error!void {
     return writer.writeIntBig(u8, 0xc0);
 }
 
@@ -230,7 +230,7 @@ test "encode nil" {
     try testEncode(encodeNil, "\xc0", .{});
 }
 
-pub fn encodeFloat(num: anytype, writer: anytype) @TypeOf(writer).Error!void {
+pub inline fn encodeFloat(num: anytype, writer: anytype) @TypeOf(writer).Error!void {
     comptime const T = @TypeOf(num);
     comptime const bits = switch (@typeInfo(T)) {
         .Float => |floatTypeInfo| floatTypeInfo.bits,
@@ -393,7 +393,7 @@ test "encode int and uint" {
     try testEncode(encodeInt, "\xce\xff\xff\xff\xff", .{@as(comptime_int, 0xffffffff)});
 }
 
-pub fn encodeBool(val: bool, writer: anytype) @TypeOf(writer).Error!void {
+pub inline fn encodeBool(val: bool, writer: anytype) @TypeOf(writer).Error!void {
     return writer.writeIntBig(u8, @as(u8, if (val) 0xc3 else 0xc2));
 }
 
@@ -436,7 +436,7 @@ test "encode array length" {
     try testEncode(encodeArrayLen, "\xdd\xff\xff\xff\xff", .{@as(comptime_int, 0xffffffff)});
 }
 
-pub fn encodeArray(arr: anytype, options: EncodingOptions, writer: anytype) @TypeOf(writer).Error!void {
+pub inline fn encodeArray(arr: anytype, options: EncodingOptions, writer: anytype) @TypeOf(writer).Error!void {
     comptime const T = @TypeOf(arr);
     switch (@typeInfo(T)) {
         .Pointer => |ptr_info| switch (ptr_info.size) {
@@ -507,7 +507,7 @@ test "encode map length" {
     try testEncode(encodeMapLen, "\xdf\xff\xff\xff\xff", .{@as(comptime_int, 0xffffffff)});
 }
 
-pub fn encodeStruct(
+pub inline fn encodeStruct(
     structure: anytype,
     options: EncodingOptions,
     writer: anytype,
@@ -537,7 +537,7 @@ pub const EncodingOptions = struct {
     struct_as_map: bool = false,
 };
 
-pub fn encode(
+pub inline fn encode(
     value: anytype,
     options: EncodingOptions,
     writer: anytype,
