@@ -577,9 +577,10 @@ pub inline fn encode(
 fn testEncode(func: anytype, comptime expected: []const u8, input: anytype) !void {
     var buf: [255]u8 = undefined;
     var fbs = std.io.fixedBufferStream(&buf);
-    const writer = fbs.outStream();
+    const writer = fbs.writer();
 
     const args = input ++ .{writer};
     try @call(.{}, func, args);
-    testing.expectEqualSlices(u8, expected, fbs.getWritten());
+    const result = fbs.getWritten();
+    testing.expectEqualSlices(u8, expected, result);
 }
