@@ -8,7 +8,7 @@ jobs:
         include:
           - zig_version: 'master'
             experimental: true
-          - zig_version: '0.7.0'
+          - zig_version: '0.7.1'
             experimental: false
     continue-on-error: '${{ matrix.experimental }}'
     runs-on: ubuntu-latest
