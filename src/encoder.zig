@@ -469,9 +469,9 @@ pub inline fn encodeArray(arr: anytype, options: EncodingOptions, writer: anytyp
 test "encode array" {
     var testArray = [_]i32{ 1, 2, 3, 4 };
 
-    try testEncode(encodeArray, "\x94\x01\x02\x03\x04", .{ testArray, EncodingOptions{} });
-    try testEncode(encodeArray, "\x94\x01\x02\x03\x04", .{ &testArray, EncodingOptions{} });
-    try testEncode(encodeArray, "\x94\x01\x02\x03\x04", .{ testArray[0..testArray.len], EncodingOptions{} });
+    try testEncode(encodeArray, "\x94\x01\x02\x03\x04", .{ testArray, .{} });
+    try testEncode(encodeArray, "\x94\x01\x02\x03\x04", .{ &testArray, .{} });
+    try testEncode(encodeArray, "\x94\x01\x02\x03\x04", .{ testArray[0..testArray.len], .{} });
 }
 
 pub fn encodeMapLen(len: u32, writer: anytype) @TypeOf(writer).Error!void {
@@ -518,11 +518,10 @@ pub inline fn encodeStruct(
 ) @TypeOf(writer).Error!void {
     comptime const fields = @typeInfo(@TypeOf(structure)).Struct.fields;
 
-    if (options.struct_as_map) {
-        try encodeMapLen(fields.len, writer);
-    } else {
-        try encodeArrayLen(fields.len, writer);
-    }
+    try switch (options.struct_encoding) {
+        .array => encodeArrayLen(fields.len, writer),
+        .map => encodeMapLen(fields.len, writer),
+    };
 
     inline for (fields) |Field| {
         if (Field.field_type == void) {
@@ -530,7 +529,7 @@ pub inline fn encodeStruct(
             continue;
         }
 
-        if (options.struct_as_map) {
+        if (options.struct_encoding == StructEncoding.map) {
             try encode(Field.name, options, writer);
         }
         try encode(@field(structure, Field.name), options, writer);
@@ -550,8 +549,19 @@ test "encode optional" {
     try testEncode(encodeOptional, "\xcd\xff\xfe", .{ @as(?i32, 65534), .{} });
 }
 
+const U8ArrayEncoding = enum {
+    array,
+    auto,
+    string,
+    binary,
+};
+const StructEncoding = enum {
+    array,
+    map,
+};
 pub const EncodingOptions = struct {
-    struct_as_map: bool = false,
+    u8_array_encoding: U8ArrayEncoding = .array,
+    struct_encoding: StructEncoding = .array,
 };
 
 pub inline fn encode(
