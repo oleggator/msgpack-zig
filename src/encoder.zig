@@ -63,6 +63,10 @@ pub inline fn encodeStr(str: []const u8, writer: anytype) @TypeOf(writer).Error!
     return writer.writeAll(str);
 }
 
+test "encode string" {
+    try testEncode(encodeStr, "\xa6string", .{"string"});
+}
+
 pub fn encodeBinLen(len: u32, writer: anytype) @TypeOf(writer).Error!void {
     if (len <= std.math.maxInt(u8)) {
         try writer.writeIntBig(u8, 0xc4);
