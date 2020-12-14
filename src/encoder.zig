@@ -542,6 +542,28 @@ pub inline fn encodeStruct(
     }
 }
 
+test "encode struct" {
+    const testingStruct = .{
+        .int = @as(i32, 65534),
+        .float = @as(f64, 3.141592653589793),
+        .boolean = true,
+        .nil = null,
+        .string = "string",
+        .array = @as([4]i16, .{ 11, 22, 33, 44 }),
+    };
+
+    try testEncode(
+        encodeStruct,
+        "\x96\xCD\xFF\xFE\xCB\x40\x09\x21\xFB\x54\x44\x2D\x18\xC3\xC0\xA6\x73\x74\x72\x69\x6E\x67\x94\x0B\x16\x21\x2C",
+        .{ testingStruct, .{ .struct_encoding = .array } },
+    );
+    try testEncode(
+        encodeStruct,
+        "\x86\xA3\x69\x6E\x74\xCD\xFF\xFE\xA5\x66\x6C\x6F\x61\x74\xCB\x40\x09\x21\xFB\x54\x44\x2D\x18\xA7\x62\x6F\x6F\x6C\x65\x61\x6E\xC3\xA3\x6E\x69\x6C\xC0\xA6\x73\x74\x72\x69\x6E\x67\xA6\x73\x74\x72\x69\x6E\x67\xA5\x61\x72\x72\x61\x79\x94\x0B\x16\x21\x2C",
+        .{ testingStruct, .{ .struct_encoding = .map } },
+    );
+}
+
 pub inline fn encodeOptional(
     value: anytype,
     options: EncodingOptions,
@@ -605,6 +627,50 @@ pub inline fn encode(
         .Null => encodeNil(writer),
         else => @compileError("Unable to encode type '" ++ @typeName(T) ++ "'"),
     };
+}
+
+test "encode" {
+    const opts = .{};
+
+    try testEncode(encode, "\xca\x40\x49\x0f\xdc", .{ @as(f32, 3.141593), opts });
+    try testEncode(encode, "\xcb\x40\x09\x21\xfb\x54\x44\x2d\x18", .{ @as(f64, 3.141592653589793), opts });
+
+    try testEncode(encode, "\xd2\xff\xff\x7f\xff", .{ @as(i32, -0x8001), opts });
+    try testEncode(encode, "\xcd\xff\xfe", .{ @as(u32, 0xfffe), opts });
+
+    try testEncode(encode, "\xc0", .{ null, opts });
+
+    try testEncode(encode, "\xc3", .{ true, opts });
+    try testEncode(encode, "\xc2", .{ false, opts });
+
+    try testEncode(encode, "\xa6string", .{ "string", opts });
+
+    try testEncode(encode, "\xc0", .{ @as(?i32, null), opts });
+    try testEncode(encode, "\xcd\xff\xfe", .{ @as(?i32, 65534), opts });
+
+    const testingStruct = .{
+        .int = @as(i32, 65534),
+        .float = @as(f64, 3.141592653589793),
+        .boolean = true,
+        .nil = null,
+        .string = "string",
+        .array = @as([4]i16, .{ 11, 22, 33, 44 }),
+    };
+    try testEncode(
+        encode,
+        "\x96\xCD\xFF\xFE\xCB\x40\x09\x21\xFB\x54\x44\x2D\x18\xC3\xC0\xA6\x73\x74\x72\x69\x6E\x67\x94\x0B\x16\x21\x2C",
+        .{ testingStruct, .{ .struct_encoding = .array } },
+    );
+    try testEncode(
+        encode,
+        "\x86\xA3\x69\x6E\x74\xCD\xFF\xFE\xA5\x66\x6C\x6F\x61\x74\xCB\x40\x09\x21\xFB\x54\x44\x2D\x18\xA7\x62\x6F\x6F\x6C\x65\x61\x6E\xC3\xA3\x6E\x69\x6C\xC0\xA6\x73\x74\x72\x69\x6E\x67\xA6\x73\x74\x72\x69\x6E\x67\xA5\x61\x72\x72\x61\x79\x94\x0B\x16\x21\x2C",
+        .{ testingStruct, .{ .struct_encoding = .map } },
+    );
+
+    var testArray = [_]i32{ 1, 2, 3, 4 };
+    try testEncode(encode, "\x94\x01\x02\x03\x04", .{ testArray, opts });
+    try testEncode(encode, "\x94\x01\x02\x03\x04", .{ &testArray, opts });
+    try testEncode(encode, "\x94\x01\x02\x03\x04", .{ testArray[0..testArray.len], opts });
 }
 
 fn testEncode(func: anytype, comptime expected: []const u8, input: anytype) !void {
