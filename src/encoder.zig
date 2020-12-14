@@ -533,6 +533,19 @@ pub inline fn encodeStruct(
     }
 }
 
+pub inline fn encodeOptional(
+    value: anytype,
+    options: EncodingOptions,
+    writer: anytype,
+) @TypeOf(writer).Error!void {
+    return if (value) |payload| encode(payload, options, writer) else encodeNil(writer);
+}
+
+test "encode optional" {
+    try testEncode(encodeOptional, "\xc0", .{ @as(?i32, null), .{} });
+    try testEncode(encodeOptional, "\xcd\xff\xfe", .{ @as(?i32, 65534), .{} });
+}
+
 pub const EncodingOptions = struct {
     struct_as_map: bool = false,
 };
@@ -547,7 +560,7 @@ pub inline fn encode(
         .Float, .ComptimeFloat => encodeFloat(value, writer),
         .Int, .ComptimeInt => encodeInt(value, writer),
         .Bool => encodeBool(value, writer),
-        .Optional => if (value) |payload| encode(payload, options, writer) else encodeNil(writer),
+        .Optional => encodeOptional(value, options, writer),
         .Struct => encodeStruct(value, options, writer),
         .Pointer => |ptr_info| switch (ptr_info.size) {
             .One => switch (@typeInfo(ptr_info.child)) {
