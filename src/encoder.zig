@@ -531,7 +531,6 @@ pub inline fn encodeStruct(
 
     inline for (fields) |Field| {
         if (Field.field_type == void) {
-            try encodeNil(writer);
             continue;
         }
 
