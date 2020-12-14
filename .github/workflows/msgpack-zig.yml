@@ -17,6 +17,6 @@ jobs:
           curl
           `curl https://ziglang.org/download/index.json | jq -r ".\"${{ matrix.zig_version }}\".\"x86_64-linux\".tarball"`
           | tar Jxf - -C /opt
-      - run: sudo sh -c "mv /opt/zig-*/zig /usr/local/bin && mv /opt/zig-*/lib/zig /usr/local/lib/zig"
+      - run: sudo sh -c "mv /opt/zig-*/zig /usr/local/bin && mv /opt/zig-*/lib /usr/local/lib/zig"
       - uses: actions/checkout@v1
       - run: make build
