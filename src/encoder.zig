@@ -239,7 +239,7 @@ pub inline fn encodeFloat(num: anytype, writer: anytype) @TypeOf(writer).Error!v
     comptime const bits = switch (@typeInfo(T)) {
         .Float => |floatTypeInfo| floatTypeInfo.bits,
         .ComptimeFloat => 64,
-        else => @compileError("unsupported type"),
+        else => @compileError("Unable to encode type '" ++ @typeName(T) ++ "'"),
     };
 
     if (bits <= 32) {
@@ -252,7 +252,7 @@ pub inline fn encodeFloat(num: anytype, writer: anytype) @TypeOf(writer).Error!v
         const casted = @bitCast(u64, @floatCast(f64, num));
         return writer.writeIntBig(u64, casted);
     }
-    @compileError("unsupported float size");
+    @compileError("Unable to encode type '" ++ @typeName(T) ++ "'");
 }
 
 test "test float and double" {
@@ -274,7 +274,7 @@ pub fn encodeInt(num: anytype, writer: anytype) @TypeOf(writer).Error!void {
     comptime const intInfo = switch (@typeInfo(T)) {
         .Int => |intInfo| intInfo,
         .ComptimeInt => @typeInfo(std.math.IntFittingRange(num, num)).Int,
-        else => @compileError("unsupported type"),
+        else => @compileError("Unable to encode type '" ++ @typeName(T) ++ "'"),
     };
 
     if (intInfo.is_signed and num < 0) {
@@ -297,9 +297,12 @@ pub fn encodeInt(num: anytype, writer: anytype) @TypeOf(writer).Error!void {
             try writer.writeIntBig(u8, 0xd2);
             return writer.writeIntBig(i32, casted);
         }
-        const casted = @truncate(i64, num);
-        try writer.writeIntBig(u8, 0xd3);
-        return writer.writeIntBig(i64, casted);
+        if (intInfo.bits <= 64 or num >= minInt(i64)) {
+            const casted = @truncate(i64, num);
+            try writer.writeIntBig(u8, 0xd3);
+            return writer.writeIntBig(i64, casted);
+        }
+        @compileError("Unable to encode type '" ++ @typeName(T) ++ "'");
     }
 
     if (intInfo.bits <= 7 or num <= maxInt(u7)) {
@@ -317,8 +320,11 @@ pub fn encodeInt(num: anytype, writer: anytype) @TypeOf(writer).Error!void {
         try writer.writeIntBig(u8, 0xce);
         return writer.writeIntBig(u32, @intCast(u32, num));
     }
-    try writer.writeIntBig(u8, 0xcf);
-    return writer.writeIntBig(u64, @intCast(u64, num));
+    if (intInfo.bits <= 64 or num <= maxInt(u64)) {
+        try writer.writeIntBig(u8, 0xcf);
+        return writer.writeIntBig(u64, @intCast(u64, num));
+    }
+    @compileError("Unable to encode type '" ++ @typeName(T) ++ "'");
 }
 
 test "encode int and uint" {
@@ -449,7 +455,7 @@ pub inline fn encodeArray(arr: anytype, options: EncodingOptions, writer: anytyp
                     const Slice = []const std.meta.Elem(ptr_info.child);
                     return encodeArray(@as(Slice, arr), options, writer);
                 },
-                else => @compileError("unsupported type"),
+                else => @compileError("Unable to encode type '" ++ @typeName(T) ++ "'"),
             },
             .Many, .Slice => {
                 try encodeArrayLen(@truncate(u32, arr.len), writer);
