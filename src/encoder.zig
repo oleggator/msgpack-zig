@@ -276,51 +276,56 @@ pub fn encodeInt(num: anytype, writer: anytype) @TypeOf(writer).Error!void {
         .ComptimeInt => @typeInfo(std.math.IntFittingRange(num, num)).Int,
         else => @compileError("Unable to encode type '" ++ @typeName(T) ++ "'"),
     };
+    comptime var bits = intInfo.bits;
 
-    if (intInfo.is_signed and num < 0) {
-        if (intInfo.bits <= 6 or num >= minInt(i6)) {
-            const casted = @truncate(i8, num);
-            return writer.writeIntBig(u8, 0xe0 | @bitCast(u8, casted));
+    if (intInfo.is_signed) {
+        if (num < 0) {
+            if (bits <= 6 or num >= minInt(i6)) {
+                const casted = @truncate(i8, num);
+                return writer.writeIntBig(u8, 0xe0 | @bitCast(u8, casted));
+            }
+            if (bits <= 8 or num >= minInt(i8)) {
+                const casted = @truncate(i8, num);
+                try writer.writeIntBig(u8, 0xd0);
+                return writer.writeIntBig(i8, casted);
+            }
+            if (bits <= 16 or num >= minInt(i16)) {
+                const casted = @truncate(i16, num);
+                try writer.writeIntBig(u8, 0xd1);
+                return writer.writeIntBig(i16, casted);
+            }
+            if (bits <= 32 or num >= minInt(i32)) {
+                const casted = @truncate(i32, num);
+                try writer.writeIntBig(u8, 0xd2);
+                return writer.writeIntBig(i32, casted);
+            }
+            if (bits <= 64 or num >= minInt(i64)) {
+                const casted = @truncate(i64, num);
+                try writer.writeIntBig(u8, 0xd3);
+                return writer.writeIntBig(i64, casted);
+            }
+            @compileError("Unable to encode type '" ++ @typeName(T) ++ "'");
         }
-        if (intInfo.bits <= 8 or num >= minInt(i8)) {
-            const casted = @truncate(i8, num);
-            try writer.writeIntBig(u8, 0xd0);
-            return writer.writeIntBig(i8, casted);
-        }
-        if (intInfo.bits <= 16 or num >= minInt(i16)) {
-            const casted = @truncate(i16, num);
-            try writer.writeIntBig(u8, 0xd1);
-            return writer.writeIntBig(i16, casted);
-        }
-        if (intInfo.bits <= 32 or num >= minInt(i32)) {
-            const casted = @truncate(i32, num);
-            try writer.writeIntBig(u8, 0xd2);
-            return writer.writeIntBig(i32, casted);
-        }
-        if (intInfo.bits <= 64 or num >= minInt(i64)) {
-            const casted = @truncate(i64, num);
-            try writer.writeIntBig(u8, 0xd3);
-            return writer.writeIntBig(i64, casted);
-        }
-        @compileError("Unable to encode type '" ++ @typeName(T) ++ "'");
+
+        bits -= 1;
     }
 
-    if (intInfo.bits <= 7 or num <= maxInt(u7)) {
+    if (bits <= 7 or num <= maxInt(u7)) {
         return writer.writeIntBig(u8, @intCast(u8, num));
     }
-    if (intInfo.bits <= 8 or num <= maxInt(u8)) {
+    if (bits <= 8 or num <= maxInt(u8)) {
         try writer.writeIntBig(u8, 0xcc);
         return writer.writeIntBig(u8, @intCast(u8, num));
     }
-    if (intInfo.bits <= 16 or num <= maxInt(u16)) {
+    if (bits <= 16 or num <= maxInt(u16)) {
         try writer.writeIntBig(u8, 0xcd);
         return writer.writeIntBig(u16, @intCast(u16, num));
     }
-    if (intInfo.bits <= 32 or num <= maxInt(u32)) {
+    if (bits <= 32 or num <= maxInt(u32)) {
         try writer.writeIntBig(u8, 0xce);
         return writer.writeIntBig(u32, @intCast(u32, num));
     }
-    if (intInfo.bits <= 64 or num <= maxInt(u64)) {
+    if (bits <= 64 or num <= maxInt(u64)) {
         try writer.writeIntBig(u8, 0xcf);
         return writer.writeIntBig(u64, @intCast(u64, num));
     }
