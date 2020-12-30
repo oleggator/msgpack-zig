@@ -658,6 +658,18 @@ test "encode tagged union" {
         TaggedUnionCustom{ .boolean = false },
         .{},
     });
+
+    const EnumCustom = enum {
+        a, b, c,
+        const Self = @This();
+        pub fn encodeMsgPack(value: Self, options: EncodingOptions, writer: anytype) @TypeOf(writer).Error!void {
+            return encodeBool(true, writer);
+        }
+    };
+    try testEncode(encode, "\xc3", .{
+        EnumCustom.a,
+        .{},
+    });
 }
 
 const U8ArrayEncoding = enum {
@@ -708,6 +720,12 @@ pub inline fn encode(
         },
         .Array => encodeArray(&value, options, writer),
         .ErrorSet => encodeStr(@errorName(value), writer),
+        .Enum => {
+            if (comptime std.meta.trait.hasFn("encodeMsgPack")(T)) {
+                return value.encodeMsgPack(options, writer);
+            }
+            @compileError("Unable to encode enum '" ++ @typeName(T) ++ "'");
+        },
         .Union => encodeUnion(value, options, writer),
         .Null => encodeNil(writer),
         else => @compileError("Unable to encode type '" ++ @typeName(T) ++ "'"),
