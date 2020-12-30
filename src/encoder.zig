@@ -691,6 +691,7 @@ pub inline fn encode(
             else => @compileError("Unable to encode type '" ++ @typeName(T) ++ "'"),
         },
         .Array => encodeArray(&value, options, writer),
+        .ErrorSet => encodeStr(@errorName(value), writer),
         .Union => encodeUnion(value, options, writer),
         .Null => encodeNil(writer),
         else => @compileError("Unable to encode type '" ++ @typeName(T) ++ "'"),
