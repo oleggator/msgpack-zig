@@ -3,6 +3,8 @@ const testing = std.testing;
 const minInt = std.math.minInt;
 const maxInt = std.math.maxInt;
 
+const encodeMsgPackFnName = "encodeMsgPack";
+
 pub fn encodeStrLen(len: u32, writer: anytype) @TypeOf(writer).Error!void {
     if (len <= std.math.maxInt(u5)) {
         return writer.writeIntBig(u8, 0xa0 | @truncate(u8, len));
@@ -581,6 +583,67 @@ test "encode optional" {
     try testEncode(encodeOptional, "\xcd\xff\xfe", .{ @as(?i32, 65534), .{} });
 }
 
+pub fn encodeUnion(
+    value: anytype,
+    options: EncodingOptions,
+    writer: anytype,
+) @TypeOf(writer).Error!void {
+    comptime const T = @TypeOf(value);
+    if (comptime std.meta.trait.hasFn(encodeMsgPackFnName)(T)) {
+        return value.encodeMsgPack(options, writer);
+    }
+    comptime const info = switch (@typeInfo(T)) {
+        .Union => |unionInfo| unionInfo,
+        else => @compileError("Unable to encode type '" ++ @typeName(T) ++ "'"),
+    };
+
+    if (info.tag_type) |TagType| {
+        inline for (info.fields) |field| {
+            if (value == @field(TagType, field.name)) {
+                return encode(@field(value, field.name), options, writer);
+            }
+        }
+    } else {
+        @compileError("Unable to encode untagged union '" ++ @typeName(T) ++ "'");
+    }
+}
+
+test "encode tagged union" {
+    const TaggedUnion = union(enum) {
+        int: i64,
+        float: f64,
+        boolean: bool,
+    };
+
+    try testEncode(encodeUnion, "\xd3\xff\xff\xff\xff\x7f\xff\xff\xff", .{
+        TaggedUnion{ .int = -0x80000001 },
+        .{},
+    });
+    try testEncode(encodeUnion, "\xcb\x3f\xf0\x00\x00\x00\x00\x00\x00", .{
+        TaggedUnion{ .float = 1.0 },
+        .{},
+    });
+    try testEncode(encodeUnion, "\xc3", .{
+        TaggedUnion{ .boolean = true },
+        .{},
+    });
+
+    const TaggedUnionCustom = union(enum) {
+        int: i64,
+        float: f64,
+        boolean: bool,
+
+        const Self = @This();
+        pub fn encodeMsgPack(value: Self, options: EncodingOptions, writer: anytype) @TypeOf(writer).Error!void {
+            return encodeBool(true, writer);
+        }
+    };
+    try testEncode(encodeUnion, "\xc3", .{
+        TaggedUnionCustom{ .boolean = false },
+        .{},
+    });
+}
+
 const U8ArrayEncoding = enum {
     array,
     auto,
@@ -628,6 +691,7 @@ pub inline fn encode(
             else => @compileError("Unable to encode type '" ++ @typeName(T) ++ "'"),
         },
         .Array => encodeArray(&value, options, writer),
+        .Union => encodeUnion(value, options, writer),
         .Null => encodeNil(writer),
         else => @compileError("Unable to encode type '" ++ @typeName(T) ++ "'"),
     };
@@ -675,6 +739,21 @@ test "encode" {
     try testEncode(encode, "\x94\x01\x02\x03\x04", .{ testArray, opts });
     try testEncode(encode, "\x94\x01\x02\x03\x04", .{ &testArray, opts });
     try testEncode(encode, "\x94\x01\x02\x03\x04", .{ testArray[0..testArray.len], opts });
+
+    const TaggedUnionCustom = union(enum) {
+        int: i64,
+        float: f64,
+        boolean: bool,
+
+        const Self = @This();
+        pub fn encodeMsgPack(value: Self, options: EncodingOptions, writer: anytype) @TypeOf(writer).Error!void {
+            return encodeBool(true, writer);
+        }
+    };
+    try testEncode(encode, "\xc3", .{
+        TaggedUnionCustom{ .boolean = false },
+        .{},
+    });
 }
 
 fn testEncode(func: anytype, comptime expected: []const u8, input: anytype) !void {
