@@ -527,8 +527,11 @@ pub inline fn encodeStruct(
     options: EncodingOptions,
     writer: anytype,
 ) @TypeOf(writer).Error!void {
-    comptime const fields = @typeInfo(@TypeOf(structure)).Struct.fields;
-
+    const T = @TypeOf(structure);
+    if (comptime std.meta.trait.hasFn("encodeMsgPack")(T)) {
+        return structure.encodeMsgPack(options, writer);
+    }
+    comptime const fields = @typeInfo(T).Struct.fields;
     try switch (options.struct_encoding) {
         .array => encodeArrayLen(fields.len, writer),
         .map => encodeMapLen(fields.len, writer),
@@ -566,6 +569,21 @@ test "encode struct" {
         "\x86\xA3\x69\x6E\x74\xCD\xFF\xFE\xA5\x66\x6C\x6F\x61\x74\xCB\x40\x09\x21\xFB\x54\x44\x2D\x18\xA7\x62\x6F\x6F\x6C\x65\x61\x6E\xC3\xA3\x6E\x69\x6C\xC0\xA6\x73\x74\x72\x69\x6E\x67\xA6\x73\x74\x72\x69\x6E\x67\xA5\x61\x72\x72\x61\x79\x94\x0B\x16\x21\x2C",
         .{ testingStruct, .{ .struct_encoding = .map } },
     );
+
+    const CustomStruct = struct {
+        int: i64 = 0,
+        float: f64 = 0,
+        boolean: bool = false,
+
+        const Self = @This();
+        pub fn encodeMsgPack(value: Self, options: EncodingOptions, writer: anytype) @TypeOf(writer).Error!void {
+            return encodeBool(true, writer);
+        }
+    };
+    try testEncode(encodeStruct, "\xc3", .{
+        CustomStruct{},
+        .{},
+    });
 }
 
 pub inline fn encodeOptional(
