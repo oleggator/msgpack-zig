@@ -3,8 +3,6 @@ const testing = std.testing;
 const minInt = std.math.minInt;
 const maxInt = std.math.maxInt;
 
-const encodeMsgPackFnName = "encodeMsgPack";
-
 pub fn encodeStrLen(len: u32, writer: anytype) @TypeOf(writer).Error!void {
     if (len <= std.math.maxInt(u5)) {
         return writer.writeIntBig(u8, 0xa0 | @truncate(u8, len));
@@ -589,7 +587,7 @@ pub fn encodeUnion(
     writer: anytype,
 ) @TypeOf(writer).Error!void {
     comptime const T = @TypeOf(value);
-    if (comptime std.meta.trait.hasFn(encodeMsgPackFnName)(T)) {
+    if (comptime std.meta.trait.hasFn("encodeMsgPack")(T)) {
         return value.encodeMsgPack(options, writer);
     }
     comptime const info = switch (@typeInfo(T)) {
