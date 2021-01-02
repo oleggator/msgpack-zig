@@ -562,12 +562,12 @@ test "encode struct" {
     try testEncode(
         encodeStruct,
         "\x96\xCD\xFF\xFE\xCB\x40\x09\x21\xFB\x54\x44\x2D\x18\xC3\xC0\xA6\x73\x74\x72\x69\x6E\x67\x94\x0B\x16\x21\x2C",
-        .{ testingStruct, .{ .struct_encoding = .array } },
+        .{ testingStruct, .{ .struct_encoding = .array, .u8_array_encoding = .string } },
     );
     try testEncode(
         encodeStruct,
         "\x86\xA3\x69\x6E\x74\xCD\xFF\xFE\xA5\x66\x6C\x6F\x61\x74\xCB\x40\x09\x21\xFB\x54\x44\x2D\x18\xA7\x62\x6F\x6F\x6C\x65\x61\x6E\xC3\xA3\x6E\x69\x6C\xC0\xA6\x73\x74\x72\x69\x6E\x67\xA6\x73\x74\x72\x69\x6E\x67\xA5\x61\x72\x72\x61\x79\x94\x0B\x16\x21\x2C",
-        .{ testingStruct, .{ .struct_encoding = .map } },
+        .{ testingStruct, .{ .struct_encoding = .map, .u8_array_encoding = .string } },
     );
 
     const CustomStruct = struct {
@@ -660,7 +660,9 @@ test "encode tagged union" {
     });
 
     const EnumCustom = enum {
-        a, b, c,
+        a,
+        b,
+        c,
         const Self = @This();
         pub fn encodeMsgPack(value: Self, options: EncodingOptions, writer: anytype) @TypeOf(writer).Error!void {
             return encodeBool(true, writer);
@@ -673,8 +675,8 @@ test "encode tagged union" {
 }
 
 const U8ArrayEncoding = enum {
+    auto, // encodes as string if valid utf8 string, otherwise encodes as binary
     array,
-    auto,
     string,
     binary,
 };
@@ -683,7 +685,7 @@ const StructEncoding = enum {
     map,
 };
 pub const EncodingOptions = struct {
-    u8_array_encoding: U8ArrayEncoding = .array,
+    u8_array_encoding: U8ArrayEncoding = .auto,
     struct_encoding: StructEncoding = .array,
 };
 
@@ -709,10 +711,18 @@ pub inline fn encode(
             },
             .Many, .Slice => blk: {
                 if (ptr_info.child == u8) {
-                    if (std.unicode.utf8ValidateSlice(value)) {
-                        break :blk encodeStr(value, writer);
-                    }
-                    break :blk encodeBin(value, writer);
+                    break :blk switch (options.u8_array_encoding) {
+                        .array => encodeArray(value, options, writer),
+                        .auto => {
+                            if (std.unicode.utf8ValidateSlice(value)) {
+                                break :blk encodeStr(value, writer);
+                            } else {
+                                break :blk encodeBin(value, writer);
+                            }
+                        },
+                        .string => encodeStr(value, writer),
+                        .binary => encodeBin(value, writer),
+                    };
                 }
                 break :blk encodeArray(value, options, writer);
             },
@@ -762,12 +772,12 @@ test "encode" {
     try testEncode(
         encode,
         "\x96\xCD\xFF\xFE\xCB\x40\x09\x21\xFB\x54\x44\x2D\x18\xC3\xC0\xA6\x73\x74\x72\x69\x6E\x67\x94\x0B\x16\x21\x2C",
-        .{ testingStruct, .{ .struct_encoding = .array } },
+        .{ testingStruct, .{ .struct_encoding = .array, .u8_array_encoding = .string } },
     );
     try testEncode(
         encode,
         "\x86\xA3\x69\x6E\x74\xCD\xFF\xFE\xA5\x66\x6C\x6F\x61\x74\xCB\x40\x09\x21\xFB\x54\x44\x2D\x18\xA7\x62\x6F\x6F\x6C\x65\x61\x6E\xC3\xA3\x6E\x69\x6C\xC0\xA6\x73\x74\x72\x69\x6E\x67\xA6\x73\x74\x72\x69\x6E\x67\xA5\x61\x72\x72\x61\x79\x94\x0B\x16\x21\x2C",
-        .{ testingStruct, .{ .struct_encoding = .map } },
+        .{ testingStruct, .{ .struct_encoding = .map, .u8_array_encoding = .string } },
     );
 
     var testArray = [_]i32{ 1, 2, 3, 4 };
@@ -788,6 +798,29 @@ test "encode" {
     try testEncode(encode, "\xc3", .{
         TaggedUnionCustom{ .boolean = false },
         .{},
+    });
+
+    const test_string_non_utf8 = "\xff\xff\xff\xff";
+    try testEncode(encode, "\xC4\x04" ++ test_string_non_utf8, .{
+        test_string_non_utf8,
+        .{ .u8_array_encoding = .auto },
+    });
+    const test_string_utf8 = "some string";
+    try testEncode(encode, "\xAB" ++ test_string_utf8, .{
+        test_string_utf8,
+        .{ .u8_array_encoding = .auto },
+    });
+    try testEncode(encode, "\x9B" ++ test_string_utf8, .{
+        test_string_utf8,
+        .{ .u8_array_encoding = .array },
+    });
+    try testEncode(encode, "\xAB" ++ test_string_utf8, .{
+        test_string_utf8,
+        .{ .u8_array_encoding = .string },
+    });
+    try testEncode(encode, "\xC4\x0B" ++ test_string_utf8, .{
+        test_string_utf8,
+        .{ .u8_array_encoding = .binary },
     });
 }
 
