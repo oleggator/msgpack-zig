@@ -65,6 +65,20 @@ test "decode string length" {
     try testDecode(decodeStrLen, .{}, @as(usize, 0xffffffff), "\xdb\xff\xff\xff\xff");
 }
 
+pub fn decodeBool(reader: anytype) !bool {
+    const code: u8 = try reader.readIntBig(u8);
+    return switch (code) {
+        0xc3 => true,
+        0xc2 => false,
+        else => return MsgPackDecodeError.InvalidCode,
+    };
+}
+
+test "decode bool" {
+    try testDecode(decodeBool, .{}, true, "\xc3");
+    try testDecode(decodeBool, .{}, false, "\xc2");
+}
+
 
 fn testDecode(func: anytype, func_args: anytype, expected: anytype, input: []const u8) !void {
     var fbs = std.io.fixedBufferStream(input);
