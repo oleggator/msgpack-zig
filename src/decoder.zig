@@ -6,6 +6,31 @@ pub const MsgPackDecodeError = error{
     Overflow,
 };
 
+pub fn decodeArrayLen(reader: anytype) !usize {
+    const code: u8 = try reader.readIntBig(u8);
+    if (code & 0xf0 == 0x90) {
+        return code & 0x0f;
+    }
+    const arr_len: usize = switch (code) {
+        0xdc => try reader.readIntBig(u16),
+        0xdd => try reader.readIntBig(u32),
+        else => return MsgPackDecodeError.InvalidCode,
+    };
+    return arr_len;
+}
+
+test "decode array length" {
+    try testDecode(decodeArrayLen, .{}, @as(usize, 0), "\x90");
+    try testDecode(decodeArrayLen, .{}, @as(usize, 1), "\x91");
+    try testDecode(decodeArrayLen, .{}, @as(usize, 15), "\x9f");
+    try testDecode(decodeArrayLen, .{}, @as(usize, 16), "\xdc\x00\x10");
+    try testDecode(decodeArrayLen, .{}, @as(usize, 0xfffe), "\xdc\xff\xfe");
+    try testDecode(decodeArrayLen, .{}, @as(usize, 0xffff), "\xdc\xff\xff");
+    try testDecode(decodeArrayLen, .{}, @as(usize, 0x10000), "\xdd\x00\x01\x00\x00");
+    try testDecode(decodeArrayLen, .{}, @as(usize, 0xfffffffe), "\xdd\xff\xff\xff\xfe");
+    try testDecode(decodeArrayLen, .{}, @as(usize, 0xffffffff), "\xdd\xff\xff\xff\xff");
+}
+
 pub fn decodeStrLen(reader: anytype) !usize {
     const code: u8 = try reader.readIntBig(u8);
     if (code & 0xe0 == 0xa0) {
