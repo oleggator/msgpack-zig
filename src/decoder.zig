@@ -1,5 +1,6 @@
 const std = @import("std");
 const testing = std.testing;
+const Allocator = std.mem.Allocator;
 const Int = std.meta.Int;
 
 pub const MsgPackDecodeError = error{
@@ -64,6 +65,44 @@ test "decode string length" {
     try testDecode(decodeStrLen, .{}, @as(usize, 0x00010000), "\xdb\x00\x01\x00\x00");
     try testDecode(decodeStrLen, .{}, @as(usize, 0xfffffffe), "\xdb\xff\xff\xff\xfe");
     try testDecode(decodeStrLen, .{}, @as(usize, 0xffffffff), "\xdb\xff\xff\xff\xff");
+}
+
+pub fn decodeStrAlloc(allocator: *Allocator, reader: anytype) ![]u8 {
+    const str_len: usize = try decodeStrLen(reader);
+    const buffer: []u8 = try allocator.alloc(u8, str_len);
+    const read_bytes = try reader.readAll(buffer);
+    return buffer;
+}
+
+fn testDecodeStringAlloc(comptime prefix: []const u8, comptime str_len: usize) !void {
+    const source_string: []const u8 = "a" ** str_len;
+    const input: []const u8 = prefix ++ source_string;
+
+    var buffer: [input.len]u8 = undefined;
+    const allocator = &std.heap.FixedBufferAllocator.init(&buffer).allocator;
+
+    var fbs = std.io.fixedBufferStream(input);
+    const reader = fbs.reader();
+    const result = try decodeStrAlloc(allocator, reader);
+
+    testing.expectEqualSlices(u8, source_string, result);
+}
+
+test "decode string with copy" {
+    try testDecodeStringAlloc("\xa0", 0x00);
+    try testDecodeStringAlloc("\xa1", 0x01);
+    try testDecodeStringAlloc("\xbe", 0x1e);
+    try testDecodeStringAlloc("\xbf", 0x1f);
+
+    try testDecodeStringAlloc("\xd9\x20", 0x20);
+    try testDecodeStringAlloc("\xd9\xfe", 0xfe);
+    try testDecodeStringAlloc("\xd9\xff", 0xff);
+
+    try testDecodeStringAlloc("\xda\x01\x00", 0x0100);
+    try testDecodeStringAlloc("\xda\xff\xfe", 0xfffe);
+    try testDecodeStringAlloc("\xda\xff\xff", 0xffff);
+
+    try testDecodeStringAlloc("\xdb\x00\x01\x00\x00", 0x00010000);
 }
 
 pub fn decodeBool(reader: anytype) !bool {
