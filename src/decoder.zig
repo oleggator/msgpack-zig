@@ -80,6 +80,34 @@ test "decode bool" {
     try testDecode(decodeBool, .{}, false, "\xc2");
 }
 
+pub fn decodeF32(reader: anytype) !f32 {
+    const code: u8 = try reader.readIntBig(u8);
+    return switch (code) {
+        0xca => @bitCast(f32, try reader.readIntBig(u32)),
+        else => return MsgPackDecodeError.InvalidCode,
+    };
+}
+
+test "decode float" {
+    try testDecode(decodeF32, .{}, @as(f32, 1.0), "\xca\x3f\x80\x00\x00");
+    try testDecode(decodeF32, .{}, @as(f32, 3.141593), "\xca\x40\x49\x0f\xdc");
+    try testDecode(decodeF32, .{}, @as(f32, -1e+38), "\xca\xfe\x96\x76\x99");
+}
+
+pub fn decodeF64(reader: anytype) !f64 {
+    const code: u8 = try reader.readIntBig(u8);
+    return switch (code) {
+        0xcb => @bitCast(f64, try reader.readIntBig(u64)),
+        else => return MsgPackDecodeError.InvalidCode,
+    };
+}
+
+test "decode double" {
+    try testDecode(decodeF64, .{}, @as(f64, 1.0), "\xcb\x3f\xf0\x00\x00\x00\x00\x00\x00");
+    try testDecode(decodeF64, .{}, @as(f64, 3.141592653589793), "\xcb\x40\x09\x21\xfb\x54\x44\x2d\x18");
+    try testDecode(decodeF64, .{}, @as(f64, -1e+99), "\xcb\xd4\x7d\x42\xae\xa2\x87\x9f\x2e");
+}
+
 pub fn decodeInt(comptime T: type, reader: anytype) !T {
     comptime const dst_bits = switch (@typeInfo(T)) {
         .Int => |intInfo| intInfo.bits,
