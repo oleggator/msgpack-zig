@@ -1,5 +1,6 @@
 const std = @import("std");
 const testing = std.testing;
+const Int = std.meta.Int;
 
 pub const MsgPackDecodeError = error{
     InvalidCode,
@@ -79,6 +80,120 @@ test "decode bool" {
     try testDecode(decodeBool, .{}, false, "\xc2");
 }
 
+pub fn decodeInt(comptime T: type, reader: anytype) !T {
+    comptime const dst_bits = switch (@typeInfo(T)) {
+        .Int => |intInfo| intInfo.bits,
+        .ComptimeInt => 64,
+        else => @compileError("Unable to decode type '" ++ @typeName(T) ++ "'"),
+    };
+    
+    const code = try reader.readIntBig(u8);
+    if (code & 0xe0 == 0xe0) {
+        const truncated_int = @truncate(u6, code);
+        return @intCast(T, @bitCast(i6, truncated_int));
+    }
+
+    const payload_bits: usize = switch (code) {
+        0xd0 => 8,
+        0xd1 => 16,
+        0xd2 => 32,
+        0xd3 => 64,
+        else => return MsgPackDecodeError.InvalidCode,
+    };
+    if (payload_bits > dst_bits) {
+        return MsgPackDecodeError.Overflow;
+    }
+
+    if (dst_bits <= 8 or payload_bits <= 8) {
+        return @intCast(T, try reader.readIntBig(Int(.signed, 8)));
+    } else if (dst_bits <= 16 or payload_bits <= 16) {
+        return @intCast(T, try reader.readIntBig(Int(.signed, 16)));
+    } else if (dst_bits <= 32 or payload_bits <= 32) {
+        return @intCast(T, try reader.readIntBig(Int(.signed, 32)));
+    } else if (dst_bits <= 64 or payload_bits <= 64) {
+        return @intCast(T, try reader.readIntBig(Int(.signed, 64)));
+    } else {
+       return MsgPackDecodeError.Overflow;
+    }
+}
+
+test "decode int" {
+    try testDecode(decodeInt, .{i6}, @as(i6, -0x01), "\xff");
+    try testDecode(decodeInt, .{i6}, @as(i6, -0x1e), "\xe2");
+    try testDecode(decodeInt, .{i6}, @as(i6, -0x1f), "\xe1");
+    try testDecode(decodeInt, .{i6}, @as(i6, -0x20), "\xe0");
+
+    try testDecode(decodeInt, .{i8}, @as(i8, -0x21), "\xd0\xdf");
+    try testDecode(decodeInt, .{i8}, @as(i8, -0x7f), "\xd0\x81");
+    try testDecode(decodeInt, .{i8}, @as(i8, -0x80), "\xd0\x80");
+
+    try testDecode(decodeInt, .{i16}, @as(i16, -0x81), "\xd1\xff\x7f");
+    try testDecode(decodeInt, .{i16}, @as(i16, -0x7fff), "\xd1\x80\x01");
+    try testDecode(decodeInt, .{i16}, @as(i16, -0x8000), "\xd1\x80\x00");
+
+    try testDecode(decodeInt, .{i32}, @as(i32, -0x8001), "\xd2\xff\xff\x7f\xff");
+    try testDecode(decodeInt, .{i32}, @as(i32, -0x7fffffff), "\xd2\x80\x00\x00\x01");
+    try testDecode(decodeInt, .{i32}, @as(i32, -0x80000000), "\xd2\x80\x00\x00\x00");
+
+    try testDecode(decodeInt, .{i64}, @as(i64, -0x80000001), "\xd3\xff\xff\xff\xff\x7f\xff\xff\xff");
+    try testDecode(decodeInt, .{i64}, @as(i64, -0x80000001), "\xd3\xff\xff\xff\xff\x7f\xff\xff\xff");
+    try testDecode(decodeInt, .{i64}, @as(i64, -0x7fffffffffffffff), "\xd3\x80\x00\x00\x00\x00\x00\x00\x01");
+    try testDecode(decodeInt, .{i64}, @as(i64, -0x8000000000000000), "\xd3\x80\x00\x00\x00\x00\x00\x00\x00");
+}
+
+pub fn decodeUint(comptime T: type, reader: anytype) !T {
+    comptime const dst_bits = switch (@typeInfo(T)) {
+        .Int => |intInfo| intInfo.bits,
+        .ComptimeInt => 64,
+        else => @compileError("Unable to decode type '" ++ @typeName(T) ++ "'"),
+    };
+
+    const code = try reader.readIntBig(u8);
+    if (code & 0x80 == 0) { // u7
+        return @intCast(T, code);
+    }
+
+    const payload_bits: usize = switch (code) {
+        0xcc => 8,
+        0xcd => 16,
+        0xce => 32,
+        0xcf => 64,
+        else => return MsgPackDecodeError.InvalidCode,
+    };
+    if (payload_bits > dst_bits) {
+        return MsgPackDecodeError.Overflow;
+    }
+
+    if (dst_bits <= 8 or payload_bits <= 8) {
+       return @intCast(T, try reader.readIntBig(Int(.unsigned, 8)));
+    } else if (dst_bits <= 16 or payload_bits <= 16) {
+        return @intCast(T, try reader.readIntBig(Int(.unsigned, 16)));
+    } else if (dst_bits <= 32 or payload_bits <= 32) {
+        return @intCast(T, try reader.readIntBig(Int(.unsigned, 32)));
+    } else if (dst_bits <= 64 or payload_bits <= 64) {
+        return @intCast(T, try reader.readIntBig(Int(.unsigned, 64)));
+    } else {
+       return MsgPackDecodeError.Overflow;
+    }
+}
+
+test "decode uint" {
+    try testDecode(decodeUint, .{u7}, @as(u7, 0), "\x00");
+    try testDecode(decodeUint, .{u7}, @as(u7, 1), "\x01");
+    try testDecode(decodeUint, .{u7}, @as(u7, 0x7e), "\x7e");
+    try testDecode(decodeUint, .{u7}, @as(u7, 0x7f), "\x7f");
+
+    try testDecode(decodeUint, .{u16}, @as(u16, 0x80), "\xcc\x80");
+    try testDecode(decodeUint, .{u16}, @as(u16, 0xfe), "\xcc\xfe");
+    try testDecode(decodeUint, .{u16}, @as(u16, 0xff), "\xcc\xff");
+
+    try testDecode(decodeUint, .{u32}, @as(u32, 0xfffe), "\xcd\xff\xfe");
+    try testDecode(decodeUint, .{u32}, @as(u32, 0xffff), "\xcd\xff\xff");
+
+    try testDecode(decodeUint, .{u64}, @as(u64, 0x10000), "\xce\x00\x01\x00\x00");
+    try testDecode(decodeUint, .{u64}, @as(u64, 0xfffffffe), "\xce\xff\xff\xff\xfe");
+    try testDecode(decodeUint, .{u64}, @as(u64, 0xffffffff), "\xce\xff\xff\xff\xff");
+}
 
 fn testDecode(func: anytype, func_args: anytype, expected: anytype, input: []const u8) !void {
     var fbs = std.io.fixedBufferStream(input);
