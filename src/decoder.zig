@@ -105,6 +105,35 @@ test "decode string with copy" {
     try testDecodeStringAlloc("\xdb\x00\x01\x00\x00", 0x00010000);
 }
 
+pub fn decodeBinLen(reader: anytype) !usize {
+    const code: u8 = try reader.readIntBig(u8);
+    const bin_len: usize = switch (code) {
+        0xc4 => try reader.readIntBig(u8),
+        0xc5 => try reader.readIntBig(u16),
+        0xc6 => try reader.readIntBig(u32),
+        else => return MsgPackDecodeError.InvalidCode,
+    };
+    return bin_len;
+}
+
+test "decode bin length" {
+    try testDecode(decodeBinLen, .{}, @as(usize, 0x00), "\xc4\x00");
+    try testDecode(decodeBinLen, .{}, @as(usize, 0x01), "\xc4\x01");
+    try testDecode(decodeBinLen, .{}, @as(usize, 0x1e), "\xc4\x1e");
+    try testDecode(decodeBinLen, .{}, @as(usize, 0x1f), "\xc4\x1f");
+    try testDecode(decodeBinLen, .{}, @as(usize, 0x20), "\xc4\x20");
+    try testDecode(decodeBinLen, .{}, @as(usize, 0xfe), "\xc4\xfe");
+    try testDecode(decodeBinLen, .{}, @as(usize, 0xff), "\xc4\xff");
+
+    try testDecode(decodeBinLen, .{}, @as(usize, 0x0100), "\xc5\x01\x00");
+    try testDecode(decodeBinLen, .{}, @as(usize, 0xfffe), "\xc5\xff\xfe");
+    try testDecode(decodeBinLen, .{}, @as(usize, 0xffff), "\xc5\xff\xff");
+
+    try testDecode(decodeBinLen, .{}, @as(usize, 0x00010000), "\xc6\x00\x01\x00\x00");
+    try testDecode(decodeBinLen, .{}, @as(usize, 0xfffffffe), "\xc6\xff\xff\xff\xfe");
+    try testDecode(decodeBinLen, .{}, @as(usize, 0xffffffff), "\xc6\xff\xff\xff\xff");
+}
+
 pub fn decodeBool(reader: anytype) !bool {
     const code: u8 = try reader.readIntBig(u8);
     return switch (code) {
