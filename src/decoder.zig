@@ -14,12 +14,11 @@ pub fn decodeArrayLen(reader: anytype) !usize {
     if (code & 0xf0 == 0x90) {
         return code & 0x0f;
     }
-    const arr_len: usize = switch (code) {
+    return switch (code) {
         0xdc => try reader.readIntBig(u16),
         0xdd => try reader.readIntBig(u32),
-        else => return MsgPackDecodeError.InvalidCode,
+        else => MsgPackDecodeError.InvalidCode,
     };
-    return arr_len;
 }
 
 test "decode array length" {
@@ -39,14 +38,12 @@ pub fn decodeStrLen(reader: anytype) !usize {
     if (code & 0xe0 == 0xa0) {
         return code & 0x1f;
     }
-
-    const str_len: usize = switch (code) {
+    return switch (code) {
         0xd9 => try reader.readIntBig(u8),
         0xda => try reader.readIntBig(u16),
         0xdb => try reader.readIntBig(u32),
-        else => return MsgPackDecodeError.InvalidCode,
+        else => MsgPackDecodeError.InvalidCode,
     };
-    return str_len;
 }
 
 test "decode string length" {
@@ -115,13 +112,12 @@ test "decode string with copy" {
 
 pub fn decodeBinLen(reader: anytype) !usize {
     const code: u8 = try reader.readIntBig(u8);
-    const bin_len: usize = switch (code) {
+    return switch (code) {
         0xc4 => try reader.readIntBig(u8),
         0xc5 => try reader.readIntBig(u16),
         0xc6 => try reader.readIntBig(u32),
-        else => return MsgPackDecodeError.InvalidCode,
+        else => MsgPackDecodeError.InvalidCode,
     };
-    return bin_len;
 }
 
 test "decode bin length" {
@@ -147,7 +143,7 @@ pub fn decodeBool(reader: anytype) !bool {
     return switch (code) {
         0xc3 => true,
         0xc2 => false,
-        else => return MsgPackDecodeError.InvalidCode,
+        else => MsgPackDecodeError.InvalidCode,
     };
 }
 
@@ -160,7 +156,7 @@ pub fn decodeF32(reader: anytype) !f32 {
     const code: u8 = try reader.readIntBig(u8);
     return switch (code) {
         0xca => @bitCast(f32, try reader.readIntBig(u32)),
-        else => return MsgPackDecodeError.InvalidCode,
+        else => MsgPackDecodeError.InvalidCode,
     };
 }
 
@@ -174,7 +170,7 @@ pub fn decodeF64(reader: anytype) !f64 {
     const code: u8 = try reader.readIntBig(u8);
     return switch (code) {
         0xcb => @bitCast(f64, try reader.readIntBig(u64)),
-        else => return MsgPackDecodeError.InvalidCode,
+        else => MsgPackDecodeError.InvalidCode,
     };
 }
 
