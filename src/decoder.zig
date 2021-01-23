@@ -69,7 +69,10 @@ test "decode string length" {
 
 pub fn decodeStrAlloc(allocator: *Allocator, reader: anytype) ![]u8 {
     const str_len: usize = try decodeStrLen(reader);
+
     const buffer: []u8 = try allocator.alloc(u8, str_len);
+    errdefer allocator.free(buffer);
+
     const read_bytes = try reader.readAll(buffer);
     return buffer;
 }
