@@ -6,6 +6,7 @@ const Int = std.meta.Int;
 pub const MsgPackDecodeError = error{
     InvalidCode,
     Overflow,
+    InvalidContentSize,
 };
 
 pub fn decodeArrayLen(reader: anytype) !usize {
@@ -74,6 +75,10 @@ pub fn decodeStrAlloc(allocator: *Allocator, reader: anytype) ![]u8 {
     errdefer allocator.free(buffer);
 
     const read_bytes = try reader.readAll(buffer);
+    if (read_bytes != str_len) {
+        return MsgPackDecodeError.InvalidContentSize;
+    }
+
     return buffer;
 }
 
