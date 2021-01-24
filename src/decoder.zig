@@ -323,6 +323,17 @@ test "decode uint" {
     try testDecode(decodeUint, .{u64}, @as(u64, 0xffffffff), "\xce\xff\xff\xff\xff");
 }
 
+pub fn decodeNull(reader: anytype) !void {
+    const code: u8 = try reader.readIntBig(u8);
+    if (code != 0xc0) {
+        return MsgPackDecodeError.InvalidCode;
+    }
+}
+
+test "decode null" {
+    try testDecode(decodeNull, .{}, @as(void, undefined), "\xc0");
+}
+
 fn testDecode(func: anytype, func_args: anytype, expected: anytype, input: []const u8) !void {
     var fbs = std.io.fixedBufferStream(input);
     const reader = fbs.reader();
