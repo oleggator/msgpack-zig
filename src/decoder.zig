@@ -25,9 +25,11 @@ test "decode array length" {
     try testDecode(decodeArrayLen, .{}, @as(usize, 0), "\x90");
     try testDecode(decodeArrayLen, .{}, @as(usize, 1), "\x91");
     try testDecode(decodeArrayLen, .{}, @as(usize, 15), "\x9f");
+
     try testDecode(decodeArrayLen, .{}, @as(usize, 16), "\xdc\x00\x10");
     try testDecode(decodeArrayLen, .{}, @as(usize, 0xfffe), "\xdc\xff\xfe");
     try testDecode(decodeArrayLen, .{}, @as(usize, 0xffff), "\xdc\xff\xff");
+
     try testDecode(decodeArrayLen, .{}, @as(usize, 0x10000), "\xdd\x00\x01\x00\x00");
     try testDecode(decodeArrayLen, .{}, @as(usize, 0xfffffffe), "\xdd\xff\xff\xff\xfe");
     try testDecode(decodeArrayLen, .{}, @as(usize, 0xffffffff), "\xdd\xff\xff\xff\xff");
@@ -66,9 +68,9 @@ test "decode string length" {
 }
 
 pub fn decodeStrAlloc(allocator: *Allocator, reader: anytype) ![]u8 {
-    const str_len: usize = try decodeStrLen(reader);
+    const str_len = try decodeStrLen(reader);
 
-    const buffer: []u8 = try allocator.alloc(u8, str_len);
+    const buffer = try allocator.alloc(u8, str_len);
     errdefer allocator.free(buffer);
 
     const read_bytes = try reader.readAll(buffer);
@@ -79,7 +81,7 @@ pub fn decodeStrAlloc(allocator: *Allocator, reader: anytype) ![]u8 {
     return buffer;
 }
 
-fn testDecodeStringAlloc(comptime prefix: []const u8, comptime str_len: usize) !void {
+fn testDecodeWithCopy(comptime decodeFunc: anytype, comptime prefix: []const u8, comptime str_len: usize) !void {
     const source_string: []const u8 = "a" ** str_len;
     const input: []const u8 = prefix ++ source_string;
 
@@ -88,26 +90,26 @@ fn testDecodeStringAlloc(comptime prefix: []const u8, comptime str_len: usize) !
 
     var fbs = std.io.fixedBufferStream(input);
     const reader = fbs.reader();
-    const result = try decodeStrAlloc(allocator, reader);
+    const result = try decodeFunc(allocator, reader);
 
     testing.expectEqualSlices(u8, source_string, result);
 }
 
 test "decode string with copy" {
-    try testDecodeStringAlloc("\xa0", 0x00);
-    try testDecodeStringAlloc("\xa1", 0x01);
-    try testDecodeStringAlloc("\xbe", 0x1e);
-    try testDecodeStringAlloc("\xbf", 0x1f);
+    try testDecodeWithCopy(decodeStrAlloc, "\xa0", 0x00);
+    try testDecodeWithCopy(decodeStrAlloc, "\xa1", 0x01);
+    try testDecodeWithCopy(decodeStrAlloc, "\xbe", 0x1e);
+    try testDecodeWithCopy(decodeStrAlloc, "\xbf", 0x1f);
 
-    try testDecodeStringAlloc("\xd9\x20", 0x20);
-    try testDecodeStringAlloc("\xd9\xfe", 0xfe);
-    try testDecodeStringAlloc("\xd9\xff", 0xff);
+    try testDecodeWithCopy(decodeStrAlloc, "\xd9\x20", 0x20);
+    try testDecodeWithCopy(decodeStrAlloc, "\xd9\xfe", 0xfe);
+    try testDecodeWithCopy(decodeStrAlloc, "\xd9\xff", 0xff);
 
-    try testDecodeStringAlloc("\xda\x01\x00", 0x0100);
-    try testDecodeStringAlloc("\xda\xff\xfe", 0xfffe);
-    try testDecodeStringAlloc("\xda\xff\xff", 0xffff);
+    try testDecodeWithCopy(decodeStrAlloc, "\xda\x01\x00", 0x0100);
+    try testDecodeWithCopy(decodeStrAlloc, "\xda\xff\xfe", 0xfffe);
+    try testDecodeWithCopy(decodeStrAlloc, "\xda\xff\xff", 0xffff);
 
-    try testDecodeStringAlloc("\xdb\x00\x01\x00\x00", 0x00010000);
+    try testDecodeWithCopy(decodeStrAlloc, "\xdb\x00\x01\x00\x00", 0x00010000);
 }
 
 pub fn decodeBinLen(reader: anytype) !usize {
@@ -136,6 +138,36 @@ test "decode bin length" {
     try testDecode(decodeBinLen, .{}, @as(usize, 0x00010000), "\xc6\x00\x01\x00\x00");
     try testDecode(decodeBinLen, .{}, @as(usize, 0xfffffffe), "\xc6\xff\xff\xff\xfe");
     try testDecode(decodeBinLen, .{}, @as(usize, 0xffffffff), "\xc6\xff\xff\xff\xff");
+}
+
+pub fn decodeBinAlloc(allocator: *Allocator, reader: anytype) ![]u8 {
+    const bin_len = try decodeBinLen(reader);
+
+    const buffer = try allocator.alloc(u8, bin_len);
+    errdefer allocator.free(buffer);
+
+    const read_bytes = try reader.readAll(buffer);
+    if (read_bytes != bin_len) {
+        return MsgPackDecodeError.InvalidContentSize;
+    }
+
+    return buffer;
+}
+
+test "decode bin with copy" {
+    try testDecodeWithCopy(decodeBinAlloc, "\xc4\x00", 0x00);
+    try testDecodeWithCopy(decodeBinAlloc, "\xc4\x01", 0x01);
+    try testDecodeWithCopy(decodeBinAlloc, "\xc4\x1e", 0x1e);
+    try testDecodeWithCopy(decodeBinAlloc, "\xc4\x1f", 0x1f);
+    try testDecodeWithCopy(decodeBinAlloc, "\xc4\x20", 0x20);
+    try testDecodeWithCopy(decodeBinAlloc, "\xc4\xfe", 0xfe);
+    try testDecodeWithCopy(decodeBinAlloc, "\xc4\xff", 0xff);
+
+    try testDecodeWithCopy(decodeBinAlloc, "\xc5\x01\x00", 0x0100);
+    try testDecodeWithCopy(decodeBinAlloc, "\xc5\xff\xfe", 0xfffe);
+    try testDecodeWithCopy(decodeBinAlloc, "\xc5\xff\xff", 0xffff);
+
+    try testDecodeWithCopy(decodeBinAlloc, "\xc6\x00\x01\x00\x00", 0x00010000);
 }
 
 pub fn decodeBool(reader: anytype) !bool {
