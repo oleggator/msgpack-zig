@@ -81,20 +81,6 @@ pub fn decodeStrAlloc(allocator: *Allocator, reader: anytype) ![]u8 {
     return buffer;
 }
 
-fn testDecodeWithCopy(comptime decodeFunc: anytype, comptime prefix: []const u8, comptime str_len: usize) !void {
-    const source_string: []const u8 = "a" ** str_len;
-    const input: []const u8 = prefix ++ source_string;
-
-    var buffer: [input.len]u8 = undefined;
-    const allocator = &std.heap.FixedBufferAllocator.init(&buffer).allocator;
-
-    var fbs = std.io.fixedBufferStream(input);
-    const reader = fbs.reader();
-    const result = try decodeFunc(allocator, reader);
-
-    testing.expectEqualSlices(u8, source_string, result);
-}
-
 test "decode string with copy" {
     try testDecodeWithCopy(decodeStrAlloc, "\xa0", 0x00);
     try testDecodeWithCopy(decodeStrAlloc, "\xa1", 0x01);
@@ -344,4 +330,18 @@ fn testDecode(func: anytype, func_args: anytype, expected: anytype, input: []con
     const args = func_args ++ .{reader};
     const result = try @call(.{}, func, args);
     testing.expectEqual(expected, result);
+}
+
+fn testDecodeWithCopy(comptime decodeFunc: anytype, comptime prefix: []const u8, comptime str_len: usize) !void {
+    const source_string: []const u8 = "a" ** str_len;
+    const input: []const u8 = prefix ++ source_string;
+
+    var buffer: [input.len]u8 = undefined;
+    const allocator = &std.heap.FixedBufferAllocator.init(&buffer).allocator;
+
+    var fbs = std.io.fixedBufferStream(input);
+    const reader = fbs.reader();
+    const result = try decodeFunc(allocator, reader);
+
+    testing.expectEqualSlices(u8, source_string, result);
 }
