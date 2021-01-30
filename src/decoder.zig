@@ -170,7 +170,7 @@ test "decode bool" {
     try testDecode(decodeBool, .{}, false, "\xc2");
 }
 
-pub fn decodeFloat(comptime T: type,reader: anytype) !T {
+pub fn decodeFloat(comptime T: type, reader: anytype) !T {
     comptime const dst_bits = switch (@typeInfo(T)) {
         .Float => |floatInfo| floatInfo.bits,
         .ComptimeFloat => 64,
@@ -192,7 +192,7 @@ pub fn decodeFloat(comptime T: type,reader: anytype) !T {
     } else if (dst_bits <= 64 or payload_bits <= 64) {
         return @bitCast(f64, try reader.readIntBig(u64));
     } else {
-       return MsgPackDecodeError.Overflow;
+        return MsgPackDecodeError.Overflow;
     }
 }
 
@@ -214,7 +214,7 @@ pub fn decodeInt(comptime T: type, reader: anytype) !T {
         .ComptimeInt => 64,
         else => @compileError("Unable to decode type '" ++ @typeName(T) ++ "'"),
     };
-    
+
     const code = try reader.readIntBig(u8);
     if (code & 0xe0 == 0xe0) {
         const truncated_int = @truncate(u6, code);
@@ -241,7 +241,7 @@ pub fn decodeInt(comptime T: type, reader: anytype) !T {
     } else if (dst_bits <= 64 or payload_bits <= 64) {
         return @intCast(T, try reader.readIntBig(Int(.signed, 64)));
     } else {
-       return MsgPackDecodeError.Overflow;
+        return MsgPackDecodeError.Overflow;
     }
 }
 
@@ -293,7 +293,7 @@ pub fn decodeUint(comptime T: type, reader: anytype) !T {
     }
 
     if (dst_bits <= 8 or payload_bits <= 8) {
-       return @intCast(T, try reader.readIntBig(Int(.unsigned, 8)));
+        return @intCast(T, try reader.readIntBig(Int(.unsigned, 8)));
     } else if (dst_bits <= 16 or payload_bits <= 16) {
         return @intCast(T, try reader.readIntBig(Int(.unsigned, 16)));
     } else if (dst_bits <= 32 or payload_bits <= 32) {
@@ -301,7 +301,7 @@ pub fn decodeUint(comptime T: type, reader: anytype) !T {
     } else if (dst_bits <= 64 or payload_bits <= 64) {
         return @intCast(T, try reader.readIntBig(Int(.unsigned, 64)));
     } else {
-       return MsgPackDecodeError.Overflow;
+        return MsgPackDecodeError.Overflow;
     }
 }
 
@@ -334,6 +334,116 @@ test "decode null" {
     try testDecode(decodeNull, .{}, @as(void, undefined), "\xc0");
 }
 
+// pub fn decodeArray(comptime T: type, reader: anytype) !void {
+
+//     const code: u8 = try reader.readIntBig(u8);
+
+// }
+
+pub const DecoodingOptions = struct {};
+
+pub fn decodeStruct(
+    comptime T: type,
+    allocator: *Allocator,
+    opts: DecoodingOptions,
+    reader: anytype,
+) !T {
+    const code = try reader.readIntBig(u8);
+
+    const SrcTypeTag = enum {
+        array,
+        // map,
+    };
+    const SrcType = union(SrcTypeTag) {
+        array: usize,
+        // map: usize,
+    };
+    const src_type = switch (code) {
+        // 0x80...0x8F => SrcType{ .map = code & 0x00F },
+        0x90...0x9F => SrcType{ .array = code & 0x0F },
+        0xDC => SrcType{ .array = try reader.readIntBig(u16) },
+        0xDD => SrcType{ .array = try reader.readIntBig(u32) },
+        // 0xDE => SrcType{ .map = try reader.readIntBig(u16) },
+        // 0xDF => SrcType{ .map = try reader.readIntBig(u32) },
+        else => return MsgPackDecodeError.InvalidCode,
+    };
+
+    comptime const fields = @typeInfo(T).Struct.fields;
+
+    var structure = T{};
+    switch (src_type) {
+        .array => |array_len| {
+            if (array_len != fields.len) {
+                return MsgPackDecodeError.InvalidContentSize;
+            }
+            inline for (fields) |Field| {
+                @field(structure, Field.name) = try decode(Field.field_type, allocator, opts, reader);
+            }
+        },
+    }
+
+    return structure;
+}
+
+test "decode struct" {
+    const SomeStruct = struct {
+        int: i32 = 0,
+        float: f64 = 0,
+        boolean: bool = false,
+        nil: ?bool = null,
+        string: [6]u8 = undefined,
+        array: [4]i16 = undefined,
+    };
+    const str = [6]u8{ 's', 't', 'r', 'i', 'n', 'g' };
+    const someStruct = SomeStruct{
+        .int = @as(i32, 65534),
+        .float = @as(f64, 3.141592653589793),
+        .boolean = true,
+        .nil = null,
+        .string = str,
+        .array = @as([4]i16, .{ 11, 22, 33, 44 }),
+    };
+    const allocator = std.testing.allocator;
+    // try testDecode(decodeStruct, .{ SomeStruct, allocator, .{} }, someStruct, "\x96\xCD\xFF\xFE\xCB\x40\x09\x21\xFB\x54\x44\x2D\x18\xC3\xC0\xA6\x73\x74\x72\x69\x6E\x67\x94\x0B\x16\x21\x2C");
+}
+
+pub fn decodeOptionalAlloc(
+    comptime T: type,
+    allocator: *Allocator,
+    options: DecoodingOptions,
+    reader: anytype,
+) !T {
+    const code: u8 = try reader.readIntBig(u8);
+    if (code == 0xc0) {
+        return null;
+    }
+    return try decode(@typeInfo(T).Optional.child, allocator, options, reader);
+}
+
+pub fn decode(
+    comptime T: type,
+    allocator: *Allocator,
+    options: DecoodingOptions,
+    reader: anytype,
+) !T {
+    return switch (@typeInfo(T)) {
+        .Float, .ComptimeFloat => decodeFloat(T, reader),
+        .Int, .ComptimeInt => decodeInt(T, reader),
+        .Bool => decodeBool(reader),
+        .Optional => decodeOptionalAlloc(T, allocator, options, reader),
+        .Struct => decodeStructAlloc(T, allocator, options, reader),
+        // .Array => decodeArrayAlloc(T, allocator, options, writer),
+        else => @compileError("Unable to decode type '" ++ @typeName(T) ++ "'"),
+    };
+}
+
+test "generic decode" {
+    const allocator = std.testing.allocator;
+
+    try testDecode(decode, .{ bool, allocator, .{} }, true, "\xc3");
+    try testDecode(decode, .{ bool, allocator, .{} }, false, "\xc2");
+}
+
 fn testDecode(func: anytype, func_args: anytype, expected: anytype, input: []const u8) !void {
     var fbs = std.io.fixedBufferStream(input);
     const reader = fbs.reader();
@@ -347,12 +457,11 @@ fn testDecodeWithCopy(comptime decodeFunc: anytype, comptime prefix: []const u8,
     const source_string: []const u8 = "a" ** str_len;
     const input: []const u8 = prefix ++ source_string;
 
-    var buffer: [input.len]u8 = undefined;
-    const allocator = &std.heap.FixedBufferAllocator.init(&buffer).allocator;
-
     var fbs = std.io.fixedBufferStream(input);
     const reader = fbs.reader();
+    const allocator = std.testing.allocator;
     const result = try decodeFunc(allocator, reader);
+    defer allocator.free(result);
 
     testing.expectEqualSlices(u8, source_string, result);
 }
