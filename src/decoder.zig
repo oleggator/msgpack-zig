@@ -377,7 +377,7 @@ pub fn decodeStruct(
                 return MsgPackDecodeError.InvalidContentSize;
             }
             inline for (fields) |Field| {
-                @field(structure, Field.name) = try decode(Field.field_type, allocator, opts, reader);
+                @field(structure, Field.name) = try decodeAlloc(Field.field_type, allocator, opts, reader);
             }
         },
     }
@@ -417,10 +417,10 @@ pub fn decodeOptionalAlloc(
     if (code == 0xc0) {
         return null;
     }
-    return try decode(@typeInfo(T).Optional.child, allocator, options, reader);
+    return try decodeAlloc(@typeInfo(T).Optional.child, allocator, options, reader);
 }
 
-pub fn decode(
+pub fn decodeAlloc(
     comptime T: type,
     allocator: *Allocator,
     options: DecoodingOptions,
@@ -440,8 +440,8 @@ pub fn decode(
 test "generic decode" {
     const allocator = std.testing.allocator;
 
-    try testDecode(decode, .{ bool, allocator, .{} }, true, "\xc3");
-    try testDecode(decode, .{ bool, allocator, .{} }, false, "\xc2");
+    try testDecode(decodeAlloc, .{ bool, allocator, .{} }, true, "\xc3");
+    try testDecode(decodeAlloc, .{ bool, allocator, .{} }, false, "\xc2");
 }
 
 fn testDecode(func: anytype, func_args: anytype, expected: anytype, input: []const u8) !void {
