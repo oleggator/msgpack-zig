@@ -67,18 +67,37 @@ test "decode string length" {
     try testDecode(decodeStrLen, .{}, @as(usize, 0xffffffff), "\xdb\xff\xff\xff\xff");
 }
 
-pub fn decodeStrAlloc(allocator: *Allocator, reader: anytype) ![]u8 {
-    const str_len = try decodeStrLen(reader);
+pub fn decodeStrAlloc(comptime T: type, allocator: *Allocator, reader: anytype) !T {
+    switch (@typeInfo(T)) {
+        .Array => |array_info| {
+            if (array_info.child != u8) {
+                @compileError("Unable to decode type '" ++ @typeName(T) ++ "' to string");
+            }
+            const str_len = try decodeStrLen(reader);
+            if (array_info.len < str_len) {
+                return MsgPackDecodeError.InvalidContentSize;
+            }
+            return try reader.readBytesNoEof(array_info.len);
+        },
+        .Pointer => |array_info| {
+            if (array_info.child != u8) {
+                @compileError("Unable to decode type '" ++ @typeName(T) ++ "' to string");
+            }
 
-    const buffer = try allocator.alloc(u8, str_len);
-    errdefer allocator.free(buffer);
+            const str_len = try decodeStrLen(reader);
 
-    const read_bytes = try reader.readAll(buffer);
-    if (read_bytes != str_len) {
-        return MsgPackDecodeError.InvalidContentSize;
+            const buffer = try allocator.alloc(u8, str_len);
+            errdefer allocator.free(buffer);
+
+            const read_bytes = try reader.read(buffer);
+            if (read_bytes != str_len) {
+                return MsgPackDecodeError.InvalidContentSize;
+            }
+
+            return buffer;
+        },
+        else => @compileError("Unable to decode type '" ++ @typeName(T) ++ "' to string"),
     }
-
-    return buffer;
 }
 
 test "decode string with copy" {
@@ -126,18 +145,37 @@ test "decode bin length" {
     try testDecode(decodeBinLen, .{}, @as(usize, 0xffffffff), "\xc6\xff\xff\xff\xff");
 }
 
-pub fn decodeBinAlloc(allocator: *Allocator, reader: anytype) ![]u8 {
-    const bin_len = try decodeBinLen(reader);
+pub fn decodeBinAlloc(comptime T: type, allocator: *Allocator, reader: anytype) !T {
+    switch (@typeInfo(T)) {
+        .Array => |array_info| {
+            if (array_info.child != u8) {
+                @compileError("Unable to decode type '" ++ @typeName(T) ++ "' from binary");
+            }
+            const bin_len = try decodeBinLen(reader);
+            if (array_info.len < bin_len) {
+                return MsgPackDecodeError.InvalidContentSize;
+            }
+            return try reader.readBytesNoEof(array_info.len);
+        },
+        .Pointer => |array_info| {
+            if (array_info.child != u8) {
+                @compileError("Unable to decode type '" ++ @typeName(T) ++ "' from binary");
+            }
 
-    const buffer = try allocator.alloc(u8, bin_len);
-    errdefer allocator.free(buffer);
+            const bin_len = try decodeBinLen(reader);
 
-    const read_bytes = try reader.readAll(buffer);
-    if (read_bytes != bin_len) {
-        return MsgPackDecodeError.InvalidContentSize;
+            const buffer = try allocator.alloc(u8, bin_len);
+            errdefer allocator.free(buffer);
+
+            const read_bytes = try reader.read(buffer);
+            if (read_bytes != bin_len) {
+                return MsgPackDecodeError.InvalidContentSize;
+            }
+
+            return buffer;
+        },
+        else => @compileError("Unable to decode type '" ++ @typeName(T) ++ "' from binary"),
     }
-
-    return buffer;
 }
 
 test "decode bin with copy" {
@@ -345,8 +383,6 @@ test "decode null" {
 
 // }
 
-pub const DecoodingOptions = struct {};
-
 pub fn decodeStruct(
     comptime T: type,
     allocator: *Allocator,
@@ -425,6 +461,16 @@ pub fn decodeOptionalAlloc(
     return try decodeAlloc(@typeInfo(T).Optional.child, allocator, options, reader);
 }
 
+pub const U8ArrayDecoding = enum {
+    array,
+    string,
+    binary,
+};
+
+pub const DecoodingOptions = struct {
+    u8_array_decoding: U8ArrayDecoding = .string,
+};
+
 pub fn decodeAlloc(
     comptime T: type,
     allocator: *Allocator,
@@ -437,7 +483,11 @@ pub fn decodeAlloc(
         .Bool => decodeBool(reader),
         .Optional => decodeOptionalAlloc(T, allocator, options, reader),
         .Struct => decodeStructAlloc(T, allocator, options, reader),
-        // .Array => decodeArrayAlloc(T, allocator, options, writer),
+        .Array => |array_info| if (array_info.child == u8) switch (options.u8_array_decoding) {
+            .array => try decodeArrayAlloc(T, allocator, options, reader),
+            .string => try decodeStrAlloc(T, allocator, reader),
+            .binary => try decodeBinAlloc(T, allocator, reader),
+        } else try decodeArrayAlloc(T, allocator, options, reader),
         else => @compileError("Unable to decode type '" ++ @typeName(T) ++ "'"),
     };
 }
@@ -465,7 +515,7 @@ fn testDecodeWithCopy(comptime decodeFunc: anytype, comptime prefix: []const u8,
     var fbs = std.io.fixedBufferStream(input);
     const reader = fbs.reader();
     const allocator = std.testing.allocator;
-    const result = try decodeFunc(allocator, reader);
+    const result = try decodeFunc([]u8, allocator, reader);
     defer allocator.free(result);
 
     testing.expectEqualSlices(u8, source_string, result);
