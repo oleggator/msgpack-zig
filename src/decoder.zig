@@ -377,11 +377,45 @@ test "decode null" {
     try testDecode(decodeNull, .{}, @as(void, undefined), "\xc0");
 }
 
-// pub fn decodeArray(comptime T: type, reader: anytype) !void {
+pub fn decodeArrayAlloc(
+    comptime T: type,
+    allocator: *Allocator,
+    opts: DecoodingOptions,
+    reader: anytype,
+) !T {
+    switch (@typeInfo(T)) {
+        .Array => |array_info| {
+            const array_len = try decodeArrayLen(reader);
+            var array: T = undefined;
+            if (array_len != array_info.len) {
+                return MsgPackDecodeError.InvalidContentSize;
+            }
+            for (array) |_, i| {
+                array[i] = try decodeAlloc(array_info.child, allocator, opts, reader);
+            }
+            return array;
+        },
+        .Pointer => |array_info| {
+            const array_len = try decodeArrayLen(reader);
+            var array = try allocator.alloc(array_info.child, array_len);
+            for (array) |_, i| {
+                array[i] = try decodeAlloc(array_info.child, allocator, opts, reader);
+            }
+            return array;
+        },
+        else => @compileError("Unable to decode type '" ++ @typeName(T) ++ "'"),
+    }
+}
 
-//     const code: u8 = try reader.readIntBig(u8);
+test "decode array" {
+    const test_array = [4]u32{ 1, 2, 3, 4 };
+    const test_slice: []const u32 = test_array[0..test_array.len];
 
-// }
+    const allocator = std.testing.allocator;
+
+    try testDecode(decodeArrayAlloc, .{ @TypeOf(test_array), allocator, .{} }, test_array, "\x94\x01\x02\x03\x04");
+    try testDecodeSlice(decodeArrayAlloc, .{.{}}, test_slice, "\x94\x01\x02\x03\x04");
+}
 
 pub fn decodeStruct(
     comptime T: type,
@@ -399,11 +433,11 @@ pub fn decodeStruct(
         array: usize,
         // map: usize,
     };
-    const dst_type = switch (code) {
+    const array_len: usize = switch (code) {
         // 0x80...0x8F => SrcType{ .map = code & 0x00F },
-        0x90...0x9F => SrcType{ .array = code & 0x0F },
-        0xDC => SrcType{ .array = try reader.readIntBig(u16) },
-        0xDD => SrcType{ .array = try reader.readIntBig(u32) },
+        0x90...0x9F => code & 0x0F,
+        0xDC => try reader.readIntBig(u16),
+        0xDD => try reader.readIntBig(u32),
         // 0xDE => SrcType{ .map = try reader.readIntBig(u16) },
         // 0xDF => SrcType{ .map = try reader.readIntBig(u32) },
         else => return MsgPackDecodeError.InvalidCode,
@@ -412,15 +446,11 @@ pub fn decodeStruct(
     comptime const fields = @typeInfo(T).Struct.fields;
 
     var structure = T{};
-    switch (dst_type) {
-        .array => |array_len| {
-            if (array_len != fields.len) {
-                return MsgPackDecodeError.InvalidContentSize;
-            }
-            inline for (fields) |Field| {
-                @field(structure, Field.name) = try decodeAlloc(Field.field_type, allocator, opts, reader);
-            }
-        },
+    if (array_len != fields.len) {
+        return MsgPackDecodeError.InvalidContentSize;
+    }
+    inline for (fields) |Field| {
+        @field(structure, Field.name) = try decodeAlloc(Field.field_type, allocator, opts, reader);
     }
 
     return structure;
@@ -428,24 +458,24 @@ pub fn decodeStruct(
 
 test "decode struct" {
     const SomeStruct = struct {
-        int: i32 = 0,
+        int: u32 = 0,
         float: f64 = 0,
         boolean: bool = false,
         nil: ?bool = null,
         string: [6]u8 = undefined,
-        array: [4]i16 = undefined,
+        array: [4]u16 = undefined,
     };
     const str = [6]u8{ 's', 't', 'r', 'i', 'n', 'g' };
     const someStruct = SomeStruct{
-        .int = @as(i32, 65534),
+        .int = @as(u32, 65534),
         .float = @as(f64, 3.141592653589793),
         .boolean = true,
         .nil = null,
         .string = str,
-        .array = @as([4]i16, .{ 11, 22, 33, 44 }),
+        .array = @as([4]u16, .{ 11, 22, 33, 44 }),
     };
     const allocator = std.testing.allocator;
-    // try testDecode(decodeStruct, .{ SomeStruct, allocator, .{} }, someStruct, "\x96\xCD\xFF\xFE\xCB\x40\x09\x21\xFB\x54\x44\x2D\x18\xC3\xC0\xA6\x73\x74\x72\x69\x6E\x67\x94\x0B\x16\x21\x2C");
+    try testDecode(decodeStruct, .{ SomeStruct, allocator, .{} }, someStruct, "\x96\xCD\xFF\xFE\xCB\x40\x09\x21\xFB\x54\x44\x2D\x18\xC3\xC0\xA6\x73\x74\x72\x69\x6E\x67\x94\x0B\x16\x21\x2C");
 }
 
 pub fn decodeOptionalAlloc(
@@ -506,6 +536,18 @@ fn testDecode(func: anytype, func_args: anytype, expected: anytype, input: []con
     const args = func_args ++ .{reader};
     const result = try @call(.{}, func, args);
     testing.expectEqual(expected, result);
+}
+
+fn testDecodeSlice(func: anytype, func_args: anytype, expected: anytype, input: []const u8) !void {
+    var fbs = std.io.fixedBufferStream(input);
+    const reader = fbs.reader();
+
+    const allocator = std.testing.allocator;
+    const T = @TypeOf(expected);
+    const args = .{ T, allocator } ++ func_args ++ .{reader};
+    const result = try @call(.{}, func, args);
+    defer allocator.free(result);
+    testing.expectEqualSlices(std.meta.Child(T), expected, result);
 }
 
 fn testDecodeWithCopy(comptime decodeFunc: anytype, comptime prefix: []const u8, comptime str_len: usize) !void {
