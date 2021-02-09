@@ -247,11 +247,7 @@ test "decode float" {
 }
 
 pub fn decodeInt(comptime T: type, reader: anytype) !T {
-    const DstTypeTag = enum {
-        signed,
-        unsigned,
-    };
-    const DstType = union(DstTypeTag) {
+    const DstType = union(enum) {
         signed: comptime_int,
         unsigned: comptime_int,
     };
@@ -425,11 +421,7 @@ pub fn decodeStruct(
 ) !T {
     const code = try reader.readIntBig(u8);
 
-    const SrcTypeTag = enum {
-        array,
-        // map,
-    };
-    const SrcType = union(SrcTypeTag) {
+    const SrcType = union(enum) {
         array: usize,
         // map: usize,
     };
@@ -465,14 +457,13 @@ test "decode struct" {
         string: [6]u8 = undefined,
         array: [4]u16 = undefined,
     };
-    const str = [6]u8{ 's', 't', 'r', 'i', 'n', 'g' };
     const someStruct = SomeStruct{
         .int = @as(u32, 65534),
         .float = @as(f64, 3.141592653589793),
         .boolean = true,
         .nil = null,
-        .string = str,
-        .array = @as([4]u16, .{ 11, 22, 33, 44 }),
+        .string = .{ 's', 't', 'r', 'i', 'n', 'g' },
+        .array = .{ 11, 22, 33, 44 },
     };
     const allocator = std.testing.allocator;
     try testDecode(decodeStruct, .{ SomeStruct, allocator, .{} }, someStruct, "\x96\xCD\xFF\xFE\xCB\x40\x09\x21\xFB\x54\x44\x2D\x18\xC3\xC0\xA6\x73\x74\x72\x69\x6E\x67\x94\x0B\x16\x21\x2C");
@@ -491,14 +482,12 @@ pub fn decodeOptionalAlloc(
     return try decodeAlloc(@typeInfo(T).Optional.child, allocator, options, reader);
 }
 
-pub const U8ArrayDecoding = enum {
-    array,
-    string,
-    binary,
-};
-
 pub const DecoodingOptions = struct {
-    u8_array_decoding: U8ArrayDecoding = .string,
+    u8_array_decoding: enum {
+        Array,
+        String,
+        Binary,
+    } = .String,
 };
 
 pub fn decodeAlloc(
@@ -514,9 +503,9 @@ pub fn decodeAlloc(
         .Optional => decodeOptionalAlloc(T, allocator, options, reader),
         .Struct => decodeStructAlloc(T, allocator, options, reader),
         .Array => |array_info| if (array_info.child == u8) switch (options.u8_array_decoding) {
-            .array => try decodeArrayAlloc(T, allocator, options, reader),
-            .string => try decodeStrAlloc(T, allocator, reader),
-            .binary => try decodeBinAlloc(T, allocator, reader),
+            .Array => try decodeArrayAlloc(T, allocator, options, reader),
+            .String => try decodeStrAlloc(T, allocator, reader),
+            .Binary => try decodeBinAlloc(T, allocator, reader),
         } else try decodeArrayAlloc(T, allocator, options, reader),
         else => @compileError("Unable to decode type '" ++ @typeName(T) ++ "'"),
     };
