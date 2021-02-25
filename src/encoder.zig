@@ -675,7 +675,8 @@ test "encode tagged union" {
 }
 
 const U8ArrayEncoding = enum {
-    auto, // encodes as string if valid utf8 string, otherwise encodes as binary
+    /// encodes as string if valid utf8 string, otherwise encodes as binary
+    auto,
     array,
     string,
     binary,
